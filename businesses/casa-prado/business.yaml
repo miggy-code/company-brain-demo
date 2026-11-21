@@ -1,0 +1,16 @@
+# Casa Prado Inmobiliaria is a fictional Lima real estate company. Every person, building,
+# project, address, amount and message in this folder is invented for the demo.
+id: casa-prado
+name: Casa Prado Inmobiliaria
+domains: [casaprado.example]
+timezone: America/Lima
+default_language: es
+# The answer model, called only through the agentgate model proxy. The policy's models
+# section must list it. Claude instead:
+#   provider: anthropic, name: claude-opus-5-5, upstream: https://api.anthropic.com,
+#   max_output_tokens: 16000
+model:
+  provider: openai_compatible
+  name: deepseek-flash
+  upstream: https://api.deepseek.com
+  max_output_tokens: 4000
