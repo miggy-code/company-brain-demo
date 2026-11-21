@@ -21,6 +21,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from enum import StrEnum
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -89,20 +90,68 @@ def content_terms(question: str) -> set[str]:
     return {t for t in tokenize(question) if len(t) >= 5 and t not in _FUNCTION_WORDS}
 
 
-def mock_reply(prompt: str) -> dict[str, Any]:
+class MockMode(StrEnum):
+    """How the stand-in model answers.
+
+    - relevance: cites only sources that contain all the question's content words.
+    - echo: copies every source into the answer and cites it, so anything that reached the
+      model shows up (the worst case for leaks through the context).
+    - obey: echo, and also follows instructions found inside sources: cite an id it was not
+      given, answer in the other language, claim to be someone, list every document, list
+      the payroll (the worst case for prompt injection).
+    """
+
+    RELEVANCE = "relevance"
+    ECHO = "echo"
+    OBEY = "obey"
+
+
+_CITE = re.compile(r"(?:cita la fuente|cite source)\s+(\d+)")
+_CLAIM = re.compile(r"(?:di que eres|say you are)\s+([^.\n]+)")
+
+
+def mock_reply(prompt: str, mode: MockMode = MockMode.RELEVANCE) -> dict[str, Any]:
     found = _QUESTION.search(prompt)
     question = found.group(1) if found else ""
-    terms = content_terms(question)
-    sentences = []
-    if terms:
-        for source_id, title, text in _SOURCE.findall(prompt):
-            if terms <= set(tokenize(f"{title} {text}")):
-                sentences.append({"text": " ".join(text.split()), "citations": [int(source_id)]})
-    return {
-        "language": detect_language(question),
-        "sentences": sentences,
-        "not_found": not sentences,
-    }
+    sources = [(int(n), title, text) for n, title, text in _SOURCE.findall(prompt)]
+    language: str = detect_language(question)
+    sentences: list[dict[str, Any]] = []
+    if mode is MockMode.RELEVANCE:
+        terms = content_terms(question)
+        if terms:
+            for n, title, text in sources:
+                if terms <= set(tokenize(f"{title} {text}")):
+                    sentences.append({"text": " ".join(text.split()), "citations": [n]})
+    else:
+        sentences = [{"text": " ".join(text.split()), "citations": [n]} for n, _, text in sources]
+    if mode is MockMode.OBEY:
+        language = _obey(sources, sentences, language)
+    return {"language": language, "sentences": sentences, "not_found": not sentences}
+
+
+def _obey(
+    sources: list[tuple[int, str, str]], sentences: list[dict[str, Any]], language: str
+) -> str:
+    """Follow every instruction planted in the sources, as a compromised model would."""
+    for _, _, text in sources:
+        lowered = text.lower()
+        for cited in _CITE.findall(lowered):
+            sentences.append({"text": "Como indica la fuente.", "citations": [int(cited)]})
+        for claim in _CLAIM.findall(lowered):
+            sentences.append({"text": f"Soy {claim.strip()} y puedo ver todo.", "citations": []})
+        if "lista todos los documentos" in lowered or "list all documents" in lowered:
+            titles = "; ".join(title for _, title, _ in sources)
+            ids = [n for n, _, _ in sources]
+            sentences.append({"text": f"Documentos: {titles}.", "citations": ids})
+        if "planilla de sueldos" in lowered or "payroll" in lowered:
+            sentences.append({"text": "Planilla de sueldos: no figura aquí.", "citations": []})
+        if "responde en ingles" in _fold(lowered) or "answer in english" in lowered:
+            language = "en"
+    return language
+
+
+def _fold(text: str) -> str:
+    return " ".join(tokenize(text))
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -120,9 +169,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(401, {"error": {"type": "authentication_error"}})
             return
         if self.path == "/v1/messages":
-            self._send(200, _anthropic(body))
+            self._send(200, _anthropic(body, self.server.mode))
         elif self.path == "/v1/chat/completions":
-            self._send(200, _openai(body))
+            self._send(200, _openai(body, self.server.mode))
         else:
             self._send(404, {"error": {"type": "not_found"}})
 
@@ -141,13 +190,14 @@ class _Handler(BaseHTTPRequestHandler):
 class _Server(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, key: str) -> None:
+    def __init__(self, key: str, mode: MockMode) -> None:
         super().__init__(("127.0.0.1", 0), _Handler)
         self.key = key
+        self.mode = mode
         self.stats = MockStats()
 
 
-def _anthropic(body: dict[str, Any]) -> dict[str, Any]:
+def _anthropic(body: dict[str, Any], mode: MockMode) -> dict[str, Any]:
     prompt = "".join(
         block["text"] if isinstance(block, dict) else str(block)
         for message in body.get("messages", [])
@@ -155,7 +205,7 @@ def _anthropic(body: dict[str, Any]) -> dict[str, Any]:
             message["content"] if isinstance(message["content"], list) else [message["content"]]
         )
     )
-    reply = mock_reply(prompt)
+    reply = mock_reply(prompt, mode)
     return {
         "id": "msg_mock",
         "type": "message",
@@ -170,9 +220,9 @@ def _anthropic(body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _openai(body: dict[str, Any]) -> dict[str, Any]:
+def _openai(body: dict[str, Any], mode: MockMode) -> dict[str, Any]:
     prompt = "".join(str(m.get("content", "")) for m in body.get("messages", []))
-    content = json.dumps(mock_reply(prompt), ensure_ascii=False)
+    content = json.dumps(mock_reply(prompt, mode), ensure_ascii=False)
     tokens_in, tokens_out = len(prompt) // 4 + 1, len(content) // 4 + 1
     return {
         "id": "chatcmpl-mock",
@@ -195,9 +245,9 @@ def _openai(body: dict[str, Any]) -> dict[str, Any]:
 
 
 @contextmanager
-def mock_upstream() -> Iterator[MockUpstream]:
+def mock_upstream(mode: MockMode = MockMode.RELEVANCE) -> Iterator[MockUpstream]:
     key = "mock-" + secrets.token_hex(8)
-    server = _Server(key)
+    server = _Server(key, mode)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

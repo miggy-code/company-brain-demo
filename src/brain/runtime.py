@@ -14,7 +14,7 @@ from agentgate.world import World
 
 from brain.answer.models import answer_model
 from brain.answer.pipeline import Brain
-from brain.evals.mock_upstream import mock_upstream
+from brain.evals.mock_upstream import MockMode, mock_upstream
 from brain.gate.audit import AuditTrail
 from brain.gate.policy import (
     BusinessPolicy,
@@ -34,8 +34,20 @@ from brain.tenancy.database import connect
 
 
 class ModelMode(StrEnum):
+    """live: the configured provider. The rest put the stand-in provider behind the real
+    proxy: mock answers by keyword relevance, echo and obey are the worst cases."""
+
     LIVE = "live"
     MOCK = "mock"
+    ECHO = "echo"
+    OBEY = "obey"
+
+
+_MOCK_MODES = {
+    ModelMode.MOCK: MockMode.RELEVANCE,
+    ModelMode.ECHO: MockMode.ECHO,
+    ModelMode.OBEY: MockMode.OBEY,
+}
 
 
 @dataclass
@@ -93,8 +105,8 @@ def open_run(
     model = opened.business.model
     with ExitStack() as stack:
         upstream: str | None = None
-        if mode is ModelMode.MOCK:
-            mock = stack.enter_context(mock_upstream())
+        if mode is not ModelMode.LIVE:
+            mock = stack.enter_context(mock_upstream(_MOCK_MODES[mode]))
             scratch = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="brain-")))
             keys_file = mock.write_keys_file(scratch / "keys.json", model.provider.value)
             upstream = mock.url
