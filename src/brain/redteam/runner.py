@@ -129,7 +129,9 @@ class Runner:
     def grid(self) -> list[ScenarioResult]:
         """01's person x canary grid, one scenario per person."""
         pairs = self._mode in DECLINING
-        suite = run_suite(self._opened, self._items, self._oracle, self._mode, pairs=pairs)
+        suite = run_suite(
+            self._opened, self._items, self._oracle, self._mode, pairs=pairs, keys_file=self._keys
+        )
         return [
             ScenarioResult(f"grid-{p.person}", Category.GRID, list(p.failures))
             for p in suite.people

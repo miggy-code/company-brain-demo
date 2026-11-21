@@ -122,8 +122,10 @@ def run_suite(
     mode: ModelMode,
     *,
     pairs: bool = True,
+    keys_file: Path | None = None,
 ) -> SuiteResult:
-    """`pairs=False` skips the not-found pairs, for models that never decline (echo, obey)."""
+    """`pairs=False` skips the not-found pairs, for models that never decline (echo, obey).
+    `keys_file` is the operator's provider keys file, for a live model."""
     people = {p.id for p in opened.directory}
     expected = expected_visibility(suite, items, people)
     canary_item = {item.canary: item.id for item in items if item.canary is not None}
@@ -132,7 +134,7 @@ def run_suite(
         result = PersonResult(person.id)
         mine = expected[person.id]
 
-        with open_run(opened, person, mode) as brain:
+        with open_run(opened, person, mode, keys_file) as brain:
             audience = [opened.directory.principals_for(person)]
             actual = set(opened.searcher.visible_items(audience, brain.policy_filter(person)))
             for item_id in sorted(actual ^ mine):

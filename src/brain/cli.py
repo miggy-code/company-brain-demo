@@ -195,7 +195,7 @@ def evaluate(
             typer.echo(f"{suite.value} suite, model {mode.value}, {len(people)} people")
             if suite is Suite.PERMISSIONS:
                 loaded = load_suite(paths.evals_dir / "permissions.yaml", items, people)
-                result = run_suite(opened, items, loaded, mode)
+                result = run_suite(opened, items, loaded, mode, keys_file=keys_file)
                 typer.echo(format_report(result))
                 if not result.passed:
                     raise typer.Exit(code=1)
