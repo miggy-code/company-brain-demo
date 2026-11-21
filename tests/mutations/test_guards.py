@@ -20,7 +20,7 @@ from brain.answer.pipeline import Brain
 from brain.answer.threads import Turn
 from brain.answer.threads import carried_turns as real_carried
 from brain.gate.audit import AuditTrail
-from brain.gate.policy import BusinessPolicy
+from brain.gate.policy import BusinessPolicy, GateError
 from brain.runtime import ModelMode
 from brain.search.filters import PolicyFilter, facts_key
 from brain.search.filters import permission_clause as real_clause
@@ -230,3 +230,24 @@ def test_g10_identity_from_context_only(
     failures = failed(run_scenarios(*G10))
 
     assert any("leaked" in f for fs in failures.values() for f in fs)
+
+
+def test_expected_raise_counts_only_on_the_faulted_turn(
+    run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # fail_closed-005 suspends Lucía before her second turn and expects GateError. A GateError
+    # on her first turn, before any fault, must fail the scenario, not satisfy it.
+    real_ask = Brain.ask
+    calls = {"n": 0}
+
+    def first_turn_breaks(self: Brain, asker: Any, question: str, **kwargs: Any) -> Any:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise GateError("proxy unavailable (injected, unrelated to the fault)")
+        return real_ask(self, asker, question, **kwargs)
+
+    monkeypatch.setattr(Brain, "ask", first_turn_breaks)
+
+    failures = failed(run_scenarios("fail_closed-005"))
+
+    assert "fail_closed-005" in failures

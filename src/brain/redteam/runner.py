@@ -153,7 +153,13 @@ class Runner:
                 try:
                     asked = brain.ask(asker, turn.question, audience=audience, thread=thread)
                 except Exception as exc:
-                    if scenario.raises is not None and _is_a(exc, scenario.raises):
+                    # Only the faulted (last) turn may raise; an earlier raise of the same type
+                    # has another cause and proves nothing about the fault.
+                    if (
+                        index == last
+                        and scenario.raises is not None
+                        and _is_a(exc, scenario.raises)
+                    ):
                         return
                     raise
             if Expectation.RAISES in expect and index == last:
