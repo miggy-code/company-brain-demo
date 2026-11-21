@@ -126,7 +126,7 @@ def run_suite(
         result = PersonResult(person.id)
         mine = expected[person.id]
 
-        with open_run(opened, person, mode, max_calls=10_000) as brain:
+        with open_run(opened, person, mode) as brain:
             audience = [opened.directory.principals_for(person)]
             actual = set(opened.searcher.visible_items(audience, brain.policy_filter(person)))
             for item_id in sorted(actual ^ mine):

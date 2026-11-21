@@ -27,6 +27,9 @@ from brain.gate.policy import GateError, WorldPaths
 from brain.tenancy.config import ModelConfig
 
 READY_TIMEOUT_S = 60.0
+# The run token's lifetime. The proxy revokes it on a clean stop; this bounds how long an
+# orphaned proxy (the brain killed outright) can still serve it. An eval run fits well inside.
+TOKEN_TTL_MINUTES = 60
 STOP_TIMEOUT_S = 15.0
 # Names that would hand a provider key to any SDK or to agentgate itself.
 _KEY_NAMES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "DEEPSEEK_API_KEY")
@@ -95,6 +98,8 @@ def model_session(
             str(ready_file),
             "--port",
             "0",
+            "--ttl-minutes",
+            str(TOKEN_TTL_MINUTES),
             "--db",
             str(world.store),
             "--audit-db",
@@ -127,10 +132,7 @@ def model_session(
 
 
 def _env() -> dict[str, str]:
-    env = {name: value for name, value in os.environ.items() if not _is_key_name(name)}
-    # Lets a proxy on a slow machine import without the user's Python warnings in its log.
-    env.setdefault("PYTHONWARNINGS", "ignore")
-    return env
+    return {name: value for name, value in os.environ.items() if not _is_key_name(name)}
 
 
 def _is_key_name(name: str) -> bool:
