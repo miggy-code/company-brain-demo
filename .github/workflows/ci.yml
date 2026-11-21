@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: brain
+          POSTGRES_PASSWORD: brain-local-only
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U brain -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      BRAIN_DATABASE_URL: postgresql://brain:brain-local-only@127.0.0.1:55432/postgres
+    defaults:
+      run:
+        working-directory: company-brain-demo
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: company-brain-demo
+      # agentgate 0.1.0 is not on PyPI yet; the brain depends on it by path (../agentgate),
+      # pinned here to the commit this repo was tested against.
+      - uses: actions/checkout@v4
+        with:
+          repository: miggy-code/agentgate
+          ref: 399d4ac84e8eed4b44058403fb289b25cf127dbe
+          path: agentgate
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.27"
+      - name: Install
+        run: uv sync --locked
+      - name: Lint and types
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+          uv run mypy src
+      # Fakes only (HashEmbedder, IdentityReranker, the mock provider behind the real
+      # agentgate proxy). No live model call and no model weights in CI.
+      - name: Tests
+        run: uv run pytest
+      - name: Permission suite (fails on any leak)
+        run: |
+          uv run brain business create casa-prado
+          uv run brain index casa-prado --models fake
+          uv run brain eval casa-prado --suite permissions
