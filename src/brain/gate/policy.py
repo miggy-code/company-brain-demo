@@ -145,10 +145,28 @@ class BusinessPolicy:
                 allowed.add(facts_key(label, tags))
         return frozenset(allowed)
 
-    def decide_result(self, user: User, label: str, tags: frozenset[str]) -> Decision:
-        return self._decide(user, READ_TOOL, label, tags)
+    def decide_result(
+        self,
+        user: User,
+        principals: frozenset[str],
+        label: str,
+        tags: frozenset[str],
+        acl: frozenset[str],
+    ) -> Decision:
+        """agentgate's decision on one result for one audience member, on the item's source
+        ACL as well as its label and tags (agentgate's ACL ceiling, upstream U1)."""
+        return self._decide(user, READ_TOOL, label, tags, acl=acl, principals=principals)
 
-    def _decide(self, user: User, tool: str, label: str, tags: frozenset[str]) -> Decision:
+    def _decide(
+        self,
+        user: User,
+        tool: str,
+        label: str,
+        tags: frozenset[str],
+        *,
+        acl: frozenset[str] | None = None,
+        principals: frozenset[str] = frozenset(),
+    ) -> Decision:
         return self._engine.decide(
             Request(
                 customer_id=self.business_id,
@@ -156,7 +174,10 @@ class BusinessPolicy:
                 role=Role(user.role),
                 tool=tool,
                 action=Action.READ,
-                document=DocumentFacts(customer_id=self.business_id, label=label, tags=tags),
+                document=DocumentFacts(
+                    customer_id=self.business_id, label=label, tags=tags, acl=acl
+                ),
+                principals=principals,
             )
         )
 
