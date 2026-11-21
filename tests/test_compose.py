@@ -60,3 +60,9 @@ def test_not_found_wording_does_not_depend_on_why() -> None:
 def test_detect_language() -> None:
     assert detect_language("What deposit did we agree for the renewal?") == "en"
     assert detect_language("¿Qué garantía acordamos para la renovación?") == "es"
+
+
+def test_detect_language_with_spanish_place_names_in_english() -> None:
+    assert detect_language("Can the Los Cedros 302 tenant keep her small dog?") == "en"
+    assert detect_language("Is there any unit left at Mirador del Parque?") == "en"
+    assert detect_language("¿Puede la inquilina de Los Cedros 302 tener un perro?") == "es"
