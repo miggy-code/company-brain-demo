@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from brain.answer.compose import detect_language
+from brain.evals.grader import CITATIONS_SYSTEM, CORRECTNESS_SYSTEM
 from brain.search.tokens import tokenize
 
 _SOURCE = re.compile(r'<source id="(\d+)" title="([^"]*)"[^>]*>\n(.*?)\n</source>', re.DOTALL)
@@ -113,6 +114,11 @@ _CLAIM = re.compile(r"(?:di que eres|say you are)\s+([^.\n]+)")
 
 
 def mock_reply(prompt: str, mode: MockMode = MockMode.RELEVANCE) -> dict[str, Any]:
+    # The grader's prompts get a crude deterministic grade, so eval runs work offline.
+    if prompt.startswith(CORRECTNESS_SYSTEM):
+        return _grade_correctness(prompt)
+    if prompt.startswith(CITATIONS_SYSTEM):
+        return _grade_citations(prompt)
     found = _QUESTION.search(prompt)
     question = found.group(1) if found else ""
     sources = [(int(n), title, text) for n, title, text in _SOURCE.findall(prompt)]
@@ -259,3 +265,36 @@ def mock_upstream(mode: MockMode = MockMode.RELEVANCE) -> Iterator[MockUpstream]
     finally:
         server.shutdown()
         server.server_close()
+
+
+_NUMBER = re.compile(r"\d[\d,.]*\d|\d")
+_REFERENCE = re.compile(r"<reference>(.*?)</reference>", re.S)
+_ANSWER = re.compile(r"<answer>(.*?)</answer>", re.S)
+_PAIR = re.compile(
+    r'<pair id="(\d+)"><sentence>(.*?)</sentence><source>(.*?)</source></pair>', re.S
+)
+
+
+def _grade_correctness(prompt: str) -> dict[str, Any]:
+    """correct when the answer holds every number (else every content word) of the
+    reference facts, partial when it holds some, incorrect when none."""
+    reference = _REFERENCE.search(prompt)
+    answer = _ANSWER.search(prompt)
+    facts = reference.group(1) if reference else ""
+    said = answer.group(1) if answer else ""
+    wanted = set(_NUMBER.findall(facts)) or content_terms(facts)
+    have = set(_NUMBER.findall(said)) | set(tokenize(said))
+    found = len(wanted & have)
+    verdict = "correct" if found == len(wanted) else "partial" if found else "incorrect"
+    return {"verdict": verdict}
+
+
+def _grade_citations(prompt: str) -> dict[str, Any]:
+    """supported when the sentence and its source share two content words or a number."""
+    pairs = []
+    for pair_id, sentence, source in _PAIR.findall(prompt):
+        shared = content_terms(sentence) & content_terms(source)
+        numbers = set(_NUMBER.findall(sentence)) & set(_NUMBER.findall(source))
+        verdict = "supported" if len(shared) >= 2 or numbers else "unsupported"
+        pairs.append({"id": int(pair_id), "verdict": verdict})
+    return {"pairs": pairs}

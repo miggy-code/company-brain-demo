@@ -96,6 +96,10 @@ class BusinessPaths:
     def evals_dir(self) -> Path:
         return self.config / "evals"
 
+    @property
+    def thresholds_file(self) -> Path:
+        return self.evals_dir / "thresholds.yaml"
+
 
 def business_paths(business_id: str, businesses_dir: Path, data_dir: Path) -> BusinessPaths:
     return BusinessPaths(config=businesses_dir / business_id, data=data_dir / business_id)
