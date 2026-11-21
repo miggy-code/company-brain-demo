@@ -22,7 +22,7 @@ from brain.evals.permissions import format_report, load_suite, run_suite
 from brain.gate.policy import GateError, InvariantError, open_business_world, prepare_world
 from brain.identity.people import load_directory
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
-from brain.ingest.index import rebuild_index
+from brain.ingest.index import index_models, rebuild_index
 from brain.ingest.items import load_items
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
@@ -246,6 +246,11 @@ def redteam(
             runner = Runner(
                 opened, items, oracle, load_decoys(redteam_dir), model, keys_file, stack
             )
+            # The README stamp names the real model and the index the run used.
+            label = f"`{model.value}`"
+            if model is ModelMode.LIVE:
+                label = f"`{opened.business.model.name}` (live, through the agentgate proxy)"
+            index = " + ".join(f"`{name}`" for name in index_models(opened.conn))
             typer.echo(f"leak suite, model {model.value}, {len(scenarios)} scenarios + grid")
             results = [runner.run(scenario) for scenario in scenarios]
             if not only:
@@ -262,7 +267,7 @@ def redteam(
         typer.echo(f"BASELINE {problem}")
     if markdown:
         command = f"uv run brain redteam {business_id} --model {model.value}"
-        write_readme(Path("README.md"), markdown_block(results, model.value, command))
+        write_readme(Path("README.md"), markdown_block(results, label, index, command))
         typer.echo("README.md results table updated")
     if problems or not all(r.passed for r in results):
         raise typer.Exit(code=1)

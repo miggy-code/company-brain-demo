@@ -40,7 +40,7 @@ def format_table(results: Sequence[ScenarioResult]) -> str:
     return "\n".join(lines)
 
 
-def markdown(results: Sequence[ScenarioResult], model: str, command: str) -> str:
+def markdown(results: Sequence[ScenarioResult], model: str, index: str, command: str) -> str:
     rows = ["| Category | Scenarios | Passed |", "| --- | ---: | ---: |"]
     for category, total, passed in table(results):
         rows.append(f"| {category} | {total} | {passed}/{total} |")
@@ -49,7 +49,7 @@ def markdown(results: Sequence[ScenarioResult], model: str, command: str) -> str
     rows.append(f"| **total** | **{total}** | **{passed}/{total}** |")
     stamp = (
         f"From `{command}` at commit `{_commit()}` on {date.today().isoformat()}, model"
-        f" `{model}`. Synthetic data (Casa Prado is fictional)."
+        f" {model}, index {index}. Synthetic data (Casa Prado is fictional)."
     )
     return "\n".join([README_START, *rows, "", stamp, README_END])
 
