@@ -11,7 +11,7 @@
    Python and agentgate's docs.read decision on the source ACL), one `brain.decision` per
    result. Disagreement raises (G4).
 5. Earlier turns of the thread, filtered so a turn is carried only if every chunk it cited
-   is within the audience's ceiling (G8).
+   is within the audience's ceiling and every audience member heard it (G8).
 6. The model, through the proxy, over the kept chunks and carried turns only; citations
    enforced (G5).
 7. `brain.answer` recorded. Only then is the answer returned (G9).
@@ -103,11 +103,13 @@ class Brain:
         for hit in result.hits:
             self._decide_for_everyone(hit, users, principal_sets)
 
+        audience_ids = tuple(p.id for p in members)
         history: list[Turn] = []
         if thread is not None:
             history = carried_turns(
                 thread.turns,
                 lambda ids: set(self._searcher.visible_chunks(principal_sets, policy, ids)),
+                audience_ids,
             )
         prompt = build_prompt(
             self._business.name,
@@ -119,7 +121,6 @@ class Brain:
         raw = self._model.generate(prompt, question_event) if reached else None
         answer = compose(parse_reply(raw), prompt, question)
         self._audit.answer(answer.cited, answer.not_found, answer.language)
-        audience_ids = tuple(p.id for p in members)
         if thread is not None:
             thread.turns.append(Turn(question, answer.text(), answer.cited, audience_ids))
         return Asked(

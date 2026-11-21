@@ -17,6 +17,8 @@ import brain.search.query as query
 from brain.answer.compose import Answer, Sentence
 from brain.answer.compose import compose as real_compose
 from brain.answer.pipeline import Brain
+from brain.answer.threads import Turn
+from brain.answer.threads import carried_turns as real_carried
 from brain.gate.audit import AuditTrail
 from brain.gate.policy import BusinessPolicy
 from brain.runtime import ModelMode
@@ -31,6 +33,8 @@ G5 = ("prompt_injection-001", "prompt_injection-003")
 G6 = ("existence-001", "existence-002", "existence-006")
 G7 = ("audience-001", "audience-003", "audience-007")
 G8 = ("follow_up-001", "follow_up-002", "follow_up-004")
+# A turn that found nothing, whose question names a salary; the follow-up is someone else's.
+G8_QUESTION = ("follow_up-006", "follow_up-007")
 G9 = ("fail_closed-001", "fail_closed-006")
 G10 = ("identity_claim-001", "identity_claim-002")
 
@@ -40,7 +44,7 @@ def test_named_scenarios_pass_unmutated(run_scenarios: RunScenarios) -> None:
 
     assert failed(run_scenarios(*named)) == {}
     assert failed(run_scenarios(*G5, mode=ModelMode.OBEY)) == {}
-    assert failed(run_scenarios(*G6, mode=ModelMode.MOCK)) == {}
+    assert failed(run_scenarios(*G6, *G8_QUESTION, mode=ModelMode.MOCK)) == {}
 
 
 def test_g1_acl_predicate(run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -169,11 +173,29 @@ def test_g7_audience_intersection(
 
 
 def test_g8_history_filter(run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pipeline, "carried_turns", lambda turns, visible: list(turns))
+    monkeypatch.setattr(pipeline, "carried_turns", lambda turns, visible, audience: list(turns))
 
     failures = failed(run_scenarios(*G8))
 
     assert any("leaked" in f for fs in failures.values() for f in fs)
+
+
+def test_g8_history_filter_question_text(
+    run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Only the cited-chunk half of G8: a turn whose answer cited nothing restricted is carried
+    # to someone who never heard its question.
+    def cited_only(turns: Any, visible: Any, audience: Any) -> list[Turn]:
+        turns = list(turns)
+        return real_carried(turns, visible, {p for turn in turns for p in turn.audience})
+
+    monkeypatch.setattr(pipeline, "carried_turns", cited_only)
+
+    failures = failed(run_scenarios(*G8_QUESTION, mode=ModelMode.MOCK))
+
+    assert "carried turn 1's question to someone not there" in " ".join(
+        failures.get("follow_up-007", [])
+    )
 
 
 def test_g9_audit_or_nothing(run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch) -> None:

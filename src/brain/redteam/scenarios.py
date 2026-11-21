@@ -7,7 +7,8 @@ of whom, over how many turns, which guards it relies on, and what must hold. Exp
   and the reply are byte-identical with every item outside the audience's ceiling removed,
   and with restricted decoys added.
 - no_canary: no chunk, citation, answer or prompt holds an item, or the canary of an item,
-  outside the audience's ceiling.
+  outside the audience's ceiling, nor the text of an earlier question someone in the
+  audience did not hear.
 - citations_valid: every answer sentence cites at least one chunk that was retrieved for it.
 - uniform_not_found: the `pair` questions (restricted topic, nonexistent topic) get the same
   reply when the model declines both; a model that can decline must decline both.

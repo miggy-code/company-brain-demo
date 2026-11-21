@@ -136,9 +136,12 @@ class Runner:
         thread = Thread(scenario.id)
         expect = set(scenario.expect)
         last = len(scenario.turns) - 1
+        # Each earlier question, with the people who heard it (its asker and audience).
+        heard: list[tuple[str, frozenset[str]]] = []
         for index, turn in enumerate(scenario.turns):
             asker = self._person(turn.asker)
             ceiling = self._ceiling([asker, *audience])
+            present = frozenset({asker.id, *scenario.audience})
             before = list(thread.turns)
             with self._fault(scenario, asker, last_turn=index == last) as brain:
                 try:
@@ -150,6 +153,9 @@ class Runner:
             if Expectation.RAISES in expect and index == last:
                 result.failures.append(f"turn {index + 1} answered; expected {scenario.raises}")
             self._check(asked, ceiling, expect, f"turn {index + 1}", result)
+            if Expectation.NO_CANARY in expect:
+                _check_overheard(asked, turn.question, present, heard, f"turn {index + 1}", result)
+            heard.append((turn.question, present))
             if Expectation.NONINTERFERENCE in expect:
                 self._noninterference(
                     scenario, brain, asker, audience, turn.question, before, asked, ceiling, result
@@ -274,6 +280,27 @@ class Runner:
                 )
         else:
             yield make_brain(self._opened, asker, session)
+
+
+def _check_overheard(
+    asked: Asked,
+    question: str,
+    present: frozenset[str],
+    heard: Sequence[tuple[str, frozenset[str]]],
+    where: str,
+    result: ScenarioResult,
+) -> None:
+    """An earlier question is private to the people who heard it: someone else typed it, and
+    it can name what only they may see. It must not reach anyone who was not there, through
+    the prompt or the answer. (A question the current asker repeats is theirs to see.)"""
+    channels = [asked.answer.text()]
+    if asked.prompt is not None:
+        channels += [asked.prompt.system, asked.prompt.user]
+    for n, (earlier, listeners) in enumerate(heard, 1):
+        if present <= listeners or earlier in question:
+            continue
+        if any(earlier in text for text in channels):
+            result.failures.append(f"{where}: carried turn {n}'s question to someone not there")
 
 
 def _copy(turns: list[Any]) -> Thread:
