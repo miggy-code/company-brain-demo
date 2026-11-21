@@ -1,0 +1,13 @@
+# The read tools the brain decides with: docs.search narrows retrieval, docs.read re-decides
+# each result before it reaches the model.
+- id: docs.search
+  description: Search the business's indexed items.
+  actions: [read]
+  base_risk: 0
+  cost_usd: "0"
+
+- id: docs.read
+  description: Read one indexed item's chunk.
+  actions: [read]
+  base_risk: 0
+  cost_usd: "0"

@@ -1,0 +1,26 @@
+# agentgate policy tests (`agentgate policy test`). Read rules are tested through the brain's
+# compiled predicate (tests/test_policy_filter.py), since items live in Postgres, not in
+# agentgate's store; these cases cover the models section.
+- name: staff may call deepseek-flash within its envelope
+  user: cp-lucia
+  model: {provider: openai_compatible, name: deepseek-flash, max_tokens: 4000, request_bytes: 50000}
+  expect: allow
+  rules: [deepseek-flash]
+
+- name: an output limit above the envelope is denied
+  user: cp-lucia
+  model: {provider: openai_compatible, name: deepseek-flash, max_tokens: 8000, request_bytes: 50000}
+  expect: deny
+  reason: model_max_tokens_exceeded
+
+- name: a model the policy does not list is denied
+  user: cp-rosa
+  model: {provider: openai_compatible, name: deepseek-v4-pro, max_tokens: 1000, request_bytes: 1000}
+  expect: deny
+  reason: model_not_allowed
+
+- name: the owner may call claude-opus-5-5
+  user: cp-rosa
+  model: {provider: anthropic, name: claude-opus-5-5, max_tokens: 16000, request_bytes: 50000}
+  expect: allow
+  rules: [claude-opus-5-5]

@@ -1,0 +1,54 @@
+# Synthetic people. `id` is also the agentgate user id; `role` is the agentgate role.
+# Memberships stand in for what the sources would report (Google groups, Slack channels,
+# HubSpot teams).
+- id: cp-rosa
+  name: Rosa Prado Valdivia
+  email: rosa.prado@casaprado.example
+  role: owner
+  title: Gerente general
+  groups: [gerencia]
+  slack_channels: [general, ventas, alquileres, administracion, proyecto-mirador]
+  hubspot_teams: [1, 2, 3]
+
+- id: cp-diego
+  name: Diego Salinas Rojas
+  email: diego.salinas@casaprado.example
+  role: manager
+  title: Gerente comercial (proyectos y reventa)
+  groups: [ventas]
+  slack_channels: [general, ventas, proyecto-mirador]
+  hubspot_teams: [1, 2]
+
+- id: cp-lucia
+  name: Lucía Quispe Mendívil
+  email: lucia.quispe@casaprado.example
+  role: staff
+  title: Asesora de ventas
+  groups: [ventas]
+  slack_channels: [general, ventas, proyecto-mirador]
+  hubspot_teams: [1, 2]
+
+- id: cp-martin
+  name: Martín Huamán Torres
+  email: martin.huaman@casaprado.example
+  role: staff
+  title: Asesor de alquileres
+  groups: [alquileres]
+  slack_channels: [general, alquileres]
+  hubspot_teams: [3]
+
+- id: cp-carla
+  name: Carla Mendoza Ríos
+  email: carla.mendoza@casaprado.example
+  role: staff
+  title: Administradora de edificios
+  groups: [administracion]
+  slack_channels: [general, administracion]
+
+# An outside maintenance technician. Not in the company domain or its Slack; the Torre
+# Alameda building folder is shared with him.
+- id: cp-jorge
+  name: Jorge Ccori Apaza
+  email: jorge.ccori@servitecandino.example
+  role: contractor
+  title: Técnico de mantenimiento (Servitec Andino)
