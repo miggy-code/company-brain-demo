@@ -22,7 +22,13 @@ from agentgate.world import OperatorReason, reinstate_user, suspend_user
 
 from brain.answer.pipeline import Asked, Brain
 from brain.answer.threads import Thread
-from brain.evals.permissions import PermissionSuite, expected_visibility, leaked_items, run_suite
+from brain.evals.permissions import (
+    PermissionSuite,
+    changed,
+    expected_visibility,
+    leaked_items,
+    run_suite,
+)
 from brain.gate.policy import BusinessPolicy
 from brain.gate.session import ModelSession
 from brain.identity.people import Person
@@ -74,18 +80,18 @@ def decoy_items(templates: Sequence[Item], count: int) -> list[Item]:
     return decoys
 
 
-def observable(asked: Asked) -> tuple[object, ...]:
-    """Everything the audience, or a compromised model, could observe of one answer."""
+def observable(asked: Asked) -> dict[str, object]:
+    """Everything the audience, or a compromised model, could observe of one answer, in
+    named parts. With the same chunks and prompt, a different reply can only come from the
+    model itself (a live model is not deterministic); a different chunk list or prompt is
+    the corpus showing through."""
     prompt = asked.prompt
     answer = asked.answer
-    return (
-        tuple(h.chunk_id for h in asked.hits),
-        None if prompt is None else (prompt.system, prompt.user),
-        answer.text(),
-        answer.cited,
-        answer.language,
-        answer.not_found,
-    )
+    return {
+        "chunks": tuple(h.chunk_id for h in asked.hits),
+        "prompt": None if prompt is None else (prompt.system, prompt.user),
+        "reply": (answer.text(), answer.cited, answer.language, answer.not_found),
+    }
 
 
 class Runner:
@@ -203,16 +209,18 @@ class Runner:
         with conn.transaction(force_rollback=True):
             conn.execute("DELETE FROM items WHERE id = ANY(%s)", (outside,))
             removed = brain.ask(asker, question, audience=audience, thread=_copy(before))
-        if observable(removed) != base:
-            result.failures.append(f"removing {len(outside)} hidden items changes the answer")
+        diff = changed(base, observable(removed))
+        if diff:
+            result.failures.append(f"removing {len(outside)} hidden items changes the {diff}")
         for count in scenario.decoys:
             if count == 0:
                 continue
             with conn.transaction(force_rollback=True):
                 insert_items(conn, decoy_items(self._decoys, count), self._opened.searcher.embedder)
                 added = brain.ask(asker, question, audience=audience, thread=_copy(before))
-            if observable(added) != base:
-                result.failures.append(f"adding {count} restricted decoys changes the answer")
+            diff = changed(base, observable(added))
+            if diff:
+                result.failures.append(f"adding {count} restricted decoys changes the {diff}")
 
     def _pair(self, scenario: Scenario, audience: list[Person], result: ScenarioResult) -> None:
         assert scenario.pair is not None

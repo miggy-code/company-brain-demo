@@ -152,9 +152,12 @@ def run_suite(
                     opened.conn.execute("DELETE FROM items WHERE id = %s", (case.item,))
                     absent = brain.ask(person, case.question)
                 result.asks += 1
-                if _observable(asked) != _observable(absent):
+                diff = changed(_observable(asked), _observable(absent))
+                if diff:
                     result.differential += 1
-                    result.failures.append(f"DIFFERENTIAL {case.item} changes what they see")
+                    result.failures.append(
+                        f"DIFFERENTIAL {case.item} changes what they see ({diff})"
+                    )
             for pair in suite.not_found_pairs if pairs else ():
                 if person.id not in pair.askers:
                     continue
@@ -189,12 +192,21 @@ def _record_leaks(result: PersonResult, leaked: list[str], asked_for: str) -> No
         result.failures.append(f"LEAK asking about {asked_for}: item {item_id}")
 
 
-def _observable(asked: Asked) -> tuple[object, ...]:
+def _observable(asked: Asked) -> dict[str, object]:
     hits = tuple(
         (h.chunk_id, h.text, h.keyword_rank, h.vector_rank, h.fused, h.rerank) for h in asked.hits
     )
     answer = asked.answer
-    return (hits, asked.permitted_chunks, answer.text(), answer.cited, answer.language)
+    return {
+        "retrieval": (hits, asked.permitted_chunks),
+        "reply": (answer.text(), answer.cited, answer.language),
+    }
+
+
+def changed(base: dict[str, object], variant: dict[str, object]) -> str:
+    """The parts that differ, by name ("" when none). Telling a changed retrieval or prompt
+    apart from a changed reply alone separates a leak from a model that is not deterministic."""
+    return ", ".join(part for part in base if base[part] != variant[part])
 
 
 def format_report(result: SuiteResult) -> str:
