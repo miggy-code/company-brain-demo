@@ -6,11 +6,16 @@ permitted chunks only, so no score can depend on a chunk the audience may not se
 Vector half: BGE-M3 cosine distance in pgvector, same predicate.
 Fusion: reciprocal rank fusion (k 60) of the top 50 of each, then the reranker over the top
 30, keep k (8).
+
+The other rankings exist for the retrieval evals' ablations: keyword or vector alone, or
+fusion without the reranker. Every ranking runs the same permission predicate; a ranking
+changes the order of what is permitted, never what is permitted.
 """
 
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from typing import Any
 
 import psycopg
@@ -29,6 +34,14 @@ CANDIDATES = 50
 RRF_K = 60
 RERANK_POOL = 30
 DEFAULT_K = 8
+
+
+class Ranking(StrEnum):
+    KEYWORD = "keyword"
+    VECTOR = "vector"
+    HYBRID = "hybrid"
+    # Production.
+    HYBRID_RERANK = "hybrid_rerank"
 
 
 @dataclass(frozen=True)
@@ -126,10 +139,25 @@ WHERE c.id = ANY(%(ids)s::text[]) AND {permission}
 class Searcher:
     """Searches one business database with its index's embedder and reranker."""
 
-    def __init__(self, conn: psycopg.Connection, embedder: Embedder, reranker: Reranker) -> None:
+    def __init__(
+        self,
+        conn: psycopg.Connection,
+        embedder: Embedder,
+        reranker: Reranker,
+        ranking: Ranking = Ranking.HYBRID_RERANK,
+    ) -> None:
         self._conn = conn
         self._embedder = embedder
         self._reranker = reranker
+        self._ranking = ranking
+
+    @property
+    def ranking(self) -> Ranking:
+        return self._ranking
+
+    def ranked(self, ranking: Ranking) -> "Searcher":
+        """The same index searched with another ranking (an eval ablation)."""
+        return Searcher(self._conn, self._embedder, self._reranker, ranking)
 
     @property
     def embedder(self) -> Embedder:
@@ -137,21 +165,35 @@ class Searcher:
         return self._embedder
 
     def search(
-        self, audience: Audience, policy: PolicyFilter, query: str, k: int = DEFAULT_K
+        self,
+        audience: Audience,
+        policy: PolicyFilter,
+        query: str,
+        k: int = DEFAULT_K,
+        *,
+        ranking: Ranking | None = None,
     ) -> SearchResult:
+        ranking = self._ranking if ranking is None else ranking
         permission = permission_clause(audience, policy)
-        keyword = self.keyword_scores(permission, query)
-        vector = self._vector_ids(permission, query)
+        keyword = [] if ranking is Ranking.VECTOR else self.keyword_scores(permission, query)
+        vector = [] if ranking is Ranking.KEYWORD else self._vector_ids(permission, query)
+        # A single list through RRF keeps its order; fusion of both is the hybrid order.
         fused = _rrf([chunk_id for chunk_id, _ in keyword], vector)
-        pool = fused[:RERANK_POOL]
+        rerank = ranking is Ranking.HYBRID_RERANK
+        pool = fused[:RERANK_POOL] if rerank else fused[:k]
         rows = self._rows(permission, [chunk_id for chunk_id, _ in pool])
         keyword_rank = {chunk_id: n for n, (chunk_id, _) in enumerate(keyword, 1)}
         vector_rank = {chunk_id: n for n, chunk_id in enumerate(vector, 1)}
         candidates = [(rows[chunk_id], score) for chunk_id, score in pool if chunk_id in rows]
-        rerank = self._reranker.scores(query, [row[11] for row, _ in candidates])
-        ranked = sorted(
-            zip(candidates, rerank, strict=True), key=lambda pair: (-pair[1], pair[0][0][0])
-        )
+        if rerank:
+            # The reranker reads what the embedder read: the item title, then the chunk.
+            texts = [f"{row[2]}\n{row[11]}" for row, _ in candidates]
+            scores = self._reranker.scores(query, texts)
+            ranked = sorted(
+                zip(candidates, scores, strict=True), key=lambda pair: (-pair[1], pair[0][0][0])
+            )
+        else:
+            ranked = [(candidate, 0.0) for candidate in candidates]
         hits = tuple(
             Hit(
                 chunk_id=row[0],
