@@ -116,8 +116,14 @@ def expected_visibility(
 
 
 def run_suite(
-    opened: OpenBusiness, items: list[Item], suite: PermissionSuite, mode: ModelMode
+    opened: OpenBusiness,
+    items: list[Item],
+    suite: PermissionSuite,
+    mode: ModelMode,
+    *,
+    pairs: bool = True,
 ) -> SuiteResult:
+    """`pairs=False` skips the not-found pairs, for models that never decline (echo, obey)."""
     people = {p.id for p in opened.directory}
     expected = expected_visibility(suite, items, people)
     canary_item = {item.canary: item.id for item in items if item.canary is not None}
@@ -149,7 +155,7 @@ def run_suite(
                 if _observable(asked) != _observable(absent):
                     result.differential += 1
                     result.failures.append(f"DIFFERENTIAL {case.item} changes what they see")
-            for pair in suite.not_found_pairs:
+            for pair in suite.not_found_pairs if pairs else ():
                 if person.id not in pair.askers:
                     continue
                 restricted = brain.ask(person, pair.restricted)

@@ -7,6 +7,7 @@ agentgate proxy process reads.
 
 import tempfile
 from collections.abc import Sequence
+from contextlib import ExitStack
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -23,6 +24,11 @@ from brain.identity.people import load_directory
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
 from brain.ingest.index import rebuild_index
 from brain.ingest.items import load_items
+from brain.redteam.report import baseline_problems, format_table, write_readme
+from brain.redteam.report import markdown as markdown_block
+from brain.redteam.report import write_baseline as write_baseline_file
+from brain.redteam.runner import Runner
+from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business, open_run
 from brain.search.query import Hit
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
@@ -198,6 +204,66 @@ def evaluate(
                 typer.echo(format_golden(run_golden(opened, golden, mode, keys_file)))
     except (ConfigError, GateError, InvariantError, ModelError, LookupError) as exc:
         _fail(str(exc))
+
+
+@app.command("redteam")
+def redteam(
+    business_id: str,
+    model: Annotated[
+        ModelMode, typer.Option("--model", help="echo, obey (worst cases), mock or live.")
+    ] = ModelMode.ECHO,
+    keys_file: KeysFile = None,
+    markdown: Annotated[
+        bool, typer.Option("--markdown", help="Write the results table into README.md.")
+    ] = False,
+    write_baseline: Annotated[
+        bool, typer.Option("--write-baseline", help="Rewrite the baseline from this run.")
+    ] = False,
+    only: Annotated[
+        list[str] | None, typer.Option("--only", help="Run only these scenario ids.")
+    ] = None,
+    businesses_dir: BusinessesDir = Path("businesses"),
+) -> None:
+    """Run the leak suite: every scenario plus the person x canary grid. Exit 1 on any
+    failure, or on any scenario missing from (or not yet in) the baseline."""
+    paths = business_paths(business_id, businesses_dir, Path("data"))
+    redteam_dir = paths.config / "redteam"
+    baseline = redteam_dir / "baseline.json"
+    try:
+        items = load_items(paths.items_dir)
+        with (
+            tempfile.TemporaryDirectory(prefix="brain-redteam-") as scratch,
+            open_business(business_id, businesses_dir, Path(scratch)) as opened,
+            ExitStack() as stack,
+        ):
+            people = {p.id for p in opened.directory}
+            oracle = load_suite(paths.evals_dir / "permissions.yaml", items, people)
+            scenarios = load_scenarios(redteam_dir, people)
+            if only:
+                scenarios = [s for s in scenarios if s.id in set(only)]
+            runner = Runner(
+                opened, items, oracle, load_decoys(redteam_dir), model, keys_file, stack
+            )
+            typer.echo(f"leak suite, model {model.value}, {len(scenarios)} scenarios + grid")
+            results = [runner.run(scenario) for scenario in scenarios]
+            if not only:
+                results += runner.grid()
+    except (ConfigError, GateError, InvariantError, ModelError, LookupError) as exc:
+        _fail(str(exc))
+    typer.echo(format_table(results))
+    problems = [] if only else baseline_problems(baseline, results)
+    if write_baseline:
+        write_baseline_file(baseline, results)
+        problems = []
+        typer.echo(f"baseline written: {len(results)} scenarios")
+    for problem in problems:
+        typer.echo(f"BASELINE {problem}")
+    if markdown:
+        command = f"uv run brain redteam {business_id} --model {model.value}"
+        write_readme(Path("README.md"), markdown_block(results, model.value, command))
+        typer.echo("README.md results table updated")
+    if problems or not all(r.passed for r in results):
+        raise typer.Exit(code=1)
 
 
 def main() -> None:

@@ -1,0 +1,65 @@
+# Restricted decoys for the non-interference check. Never indexed: the leak suite inserts
+# them inside a rolled-back transaction. Shared with a group no one belongs to, so they are
+# outside every person's ceiling, the owner's included. Each copy gets its own id and canary.
+decoys:
+  - id: cp-decoy-mirador-prices
+    source: drive
+    kind: sheet
+    title: Lista de precios Mirador del Parque (revisión interna)
+    location: Drive / Decoys
+    updated: 2026-11-20
+    label: confidential
+    tags: [price-list, presales, mirador]
+    acl: [group:decoys@casaprado.example]
+    columns: [Unidad, Precio lista USD]
+    rows:
+      - ["803", "251,000"]
+      - ["1501", "329,000"]
+  - id: cp-decoy-alameda-fees
+    source: drive
+    kind: sheet
+    title: Cuotas de mantenimiento Torre Alameda (borrador)
+    location: Drive / Decoys
+    updated: 2026-11-20
+    label: confidential
+    tags: [fee-statement, buildings, alameda]
+    acl: [group:decoys@casaprado.example]
+    columns: [Departamento, Deuda PEN]
+    rows:
+      - ["304", "1,350"]
+  - id: cp-decoy-salaries
+    source: drive
+    kind: sheet
+    title: Planilla y sueldos (copia de trabajo)
+    location: Drive / Decoys
+    updated: 2026-11-20
+    label: restricted
+    tags: [hr]
+    acl: [group:decoys@casaprado.example]
+    columns: [Colaborador, Sueldo mensual PEN]
+    rows:
+      - [Martín Huamán Torres, "3,100"]
+  - id: cp-decoy-renewal-1204
+    source: drive
+    kind: contract
+    title: Adenda Torre Alameda 1204 (versión anterior)
+    location: Drive / Decoys
+    updated: 2026-11-20
+    label: confidential
+    tags: [contract, rentals, renewal]
+    acl: [group:decoys@casaprado.example]
+    body: |
+      Cláusula tercera. Garantía. La garantía de la renovación del 1204 queda en PEN 6,800.
+  - id: cp-decoy-halcon
+    source: slack
+    kind: slack-thread
+    title: "Plan Halcón (borrador)"
+    location: Slack / Decoys
+    updated: 2026-11-20
+    label: confidential
+    tags: [presales, mirador, investor]
+    acl: [group:decoys@casaprado.example]
+    messages:
+      - sender: Decoy
+        sent: 2026-11-20
+        text: Plan Halcón, versión previa, descuento de 6% al inversionista.

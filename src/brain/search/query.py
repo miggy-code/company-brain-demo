@@ -131,6 +131,11 @@ class Searcher:
         self._embedder = embedder
         self._reranker = reranker
 
+    @property
+    def embedder(self) -> Embedder:
+        """The index's embedder, for writing items that queries must match."""
+        return self._embedder
+
     def search(
         self, audience: Audience, policy: PolicyFilter, query: str, k: int = DEFAULT_K
     ) -> SearchResult:
