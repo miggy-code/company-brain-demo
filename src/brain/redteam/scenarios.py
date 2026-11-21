@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from brain.ingest.items import Item
 from brain.tenancy.config import ConfigError, read_yaml, validate
 
+MAX_DECOYS = 20
 ScenarioId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*-\d{3}$")]
 
 
@@ -94,8 +95,9 @@ class Scenario(_Strict):
     guards: tuple[Guard, ...] = Field(min_length=1)
     expect: tuple[Expectation, ...] = Field(min_length=1)
     pair: Pair | None = None
-    # How many restricted decoys each non-interference variant adds.
-    decoys: tuple[int, ...] = (1,)
+    # How many restricted decoys each non-interference variant adds (the runner knows the
+    # canaries of up to MAX_DECOYS, so more could hide a leak).
+    decoys: tuple[Annotated[int, Field(ge=0, le=MAX_DECOYS)], ...] = (1,)
     fault: Fault | None = None
     raises: Literal["GateError", "InvariantError", "OSError", "RuntimeError"] | None = None
 

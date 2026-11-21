@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: miggy-code/agentgate
-          ref: f858c86c4f22f56a49fc3a6d78973c5d36cf7db9
+          ref: edba7478806b056cfbffcc3c085fdb30de25b381
           path: agentgate
       - uses: astral-sh/setup-uv@v6
         with:

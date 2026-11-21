@@ -28,7 +28,7 @@ from brain.gate.session import ModelSession
 from brain.identity.people import Person
 from brain.ingest.index import insert_items
 from brain.ingest.items import Item
-from brain.redteam.scenarios import Category, Expectation, Fault, Scenario
+from brain.redteam.scenarios import MAX_DECOYS, Category, Expectation, Fault, Scenario
 from brain.runtime import ModelMode, OpenBusiness, make_brain, open_session
 
 # Models that can decline to answer; under them the not-found wording check is strict.
@@ -109,7 +109,7 @@ class Runner:
         self._keys = keys_file
         self._stack = stack
         self._sessions: dict[str, ModelSession] = {}
-        everything = [*self._items, *decoy_items(self._decoys, 20)]
+        everything = [*self._items, *decoy_items(self._decoys, MAX_DECOYS)]
         self._canaries = {i.canary: i.id for i in everything if i.canary is not None}
 
     def run(self, scenario: Scenario) -> ScenarioResult:

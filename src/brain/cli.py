@@ -226,6 +226,8 @@ def redteam(
 ) -> None:
     """Run the leak suite: every scenario plus the person x canary grid. Exit 1 on any
     failure, or on any scenario missing from (or not yet in) the baseline."""
+    if only and (markdown or write_baseline):
+        _fail("--markdown and --write-baseline need the whole suite, not --only")
     paths = business_paths(business_id, businesses_dir, Path("data"))
     redteam_dir = paths.config / "redteam"
     baseline = redteam_dir / "baseline.json"
