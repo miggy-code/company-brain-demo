@@ -145,7 +145,7 @@ cases:
 
   # HubSpot: owning team.
   - item: cp-hubspot-deal-mirador-502
-    question: ¿En qué etapa está el deal de Mirador 502 y qué financiamiento tiene?
+    question: ¿Qué banco preaprobó el crédito hipotecario del deal de Mirador 502?
     visible_to: [cp-rosa, cp-diego, cp-lucia]
   - item: cp-hubspot-deal-gardenias
     question: ¿Qué comisión se pactó en el deal de venta de Las Gardenias con Whitfield?
@@ -179,6 +179,114 @@ cases:
 
 # A question about restricted content and one about something that does not exist must get
 # the same fixed not-found reply. "Plan Cóndor" and "Pedro Tapia" exist nowhere.
+  # Near-miss items (03). Same sharing as their neighbours above.
+  - item: cp-drive-mirador-price-list-v1
+    question: ¿Qué precio tenía la unidad 803 en la lista de precios de julio de Mirador?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-mirador-parking-prices
+    question: ¿Cuánto cuesta un estacionamiento doble en Mirador del Parque?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-mirador-obra-avance
+    question: ¿Qué avance de obra tenía Mirador del Parque a fines de octubre?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-promesa-sauces-draft
+    question: ¿Qué arras fija la promesa de compraventa de Los Sauces 701?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-title-check-sauces
+    question: ¿Qué observación tiene el estudio de títulos de Los Sauces 701?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-tasacion-gardenias
+    question: ¿Cuál es el valor comercial de la tasación de Las Gardenias 455?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-drive-commission-policy-2025
+    question: ¿Qué porcentaje recibía el asesor por alquileres en la política de comisiones 2025?
+    visible_to: [cp-rosa, cp-diego, cp-lucia, cp-martin, cp-carla]
+  - item: cp-drive-reglamento-alameda
+    question: ¿Qué dice el reglamento interno de Torre Alameda sobre mascotas?
+    visible_to: [cp-rosa, cp-diego, cp-lucia, cp-martin, cp-carla]
+  - item: cp-drive-lease-cedros-104
+    question: ¿Qué renta pagaba el último inquilino de Los Cedros 104?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-drive-renewal-alameda-0907
+    question: ¿Qué renta fija la adenda de renovación de Torre Alameda 907?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-drive-rental-portfolio-2026-06
+    question: ¿Qué renta tenía el 905 en la cartera de alquileres de junio?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-drive-screening-alameda-0907
+    question: ¿Qué ingresos tiene la evaluación de inquilino de Sofía Bustamante?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-drive-fees-alameda-2026-08
+    question: ¿Quién debía cuotas de mantenimiento en Torre Alameda en agosto 2026?
+    visible_to: [cp-rosa, cp-carla]
+  - item: cp-drive-fees-cedros-2026-09
+    question: ¿Quién debía cuotas de mantenimiento en Los Cedros en septiembre 2026?
+    visible_to: [cp-rosa, cp-carla]
+  # The Los Cedros folder is not shared with the contractor.
+  - item: cp-drive-ot-cedros-0405
+    question: ¿Qué se hizo en la orden OT-0405 de la bomba de Los Cedros?
+    visible_to: [cp-rosa, cp-carla]
+  - item: cp-drive-ot-alameda-0388
+    question: ¿Qué trabajo se hizo en la orden OT-0388 de la bomba de Torre Alameda?
+    visible_to: [cp-rosa, cp-carla, cp-jorge]
+  - item: cp-drive-junta-cedros-acta
+    question: ¿Qué acordó la junta de propietarios de Los Cedros sobre la fachada?
+    visible_to: [cp-rosa, cp-carla]
+  - item: cp-drive-presupuesto-ascensor-alameda
+    question: ¿Cuánto cotizó TecnoLift Perú por el ascensor 2 de Torre Alameda?
+    visible_to: [cp-rosa, cp-carla]
+  - item: cp-gmail-ventas-separation-604
+    question: ¿Cuánto cuesta el 604 de Mirador con el precio de lanzamiento según Gonzalo Ríos?
+    visible_to: [cp-diego, cp-lucia]
+  - item: cp-gmail-ventas-inquiry-monte-azul
+    question: ¿Qué preguntó Carmen Tello sobre la casa de Monte Azul?
+    visible_to: [cp-diego, cp-lucia]
+  - item: cp-gmail-renewal-alameda-0907
+    question: ¿Qué respondió Martín a Sofía Bustamante sobre la renta del 907?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-gmail-cedros-402-damp
+    question: What caused the damp wall in Los Cedros 402?
+    visible_to: [cp-carla]
+  - item: cp-gmail-ot-0415-schedule
+    question: ¿Cuándo se cambian las luminarias de la orden OT-0415?
+    visible_to: [cp-carla, cp-jorge]
+  - item: cp-gmail-altamira-cronograma
+    question: ¿Qué dijo Ricardo Altamira sobre el retraso de la obra de Mirador?
+    visible_to: [cp-rosa, cp-diego]
+  - item: cp-slack-mirador-acabados
+    question: ¿Qué acabados tiene la cocina de los departamentos de Mirador?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-slack-ventas-pipeline-oct
+    question: ¿Cuántas separaciones tenía Mirador en el pipeline del 27 de octubre?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-slack-alquileres-visitas
+    question: ¿Cuántas visitas tuvo el 104 de Los Cedros esta semana?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-slack-administracion-cisterna
+    question: ¿Cuándo es la limpieza de la cisterna de Torre Alameda?
+    visible_to: [cp-rosa, cp-carla]
+  - item: cp-slack-general-capacitacion
+    question: ¿Cuándo es la capacitación sobre protección de datos personales?
+    visible_to: [cp-rosa, cp-diego, cp-lucia, cp-martin, cp-carla]
+  - item: cp-hubspot-deal-mirador-604
+    question: ¿En qué etapa está el deal del 604 de Mirador con Gonzalo Ríos?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-hubspot-contact-villanueva
+    question: ¿Cómo prefiere que la contacten Andrea Villanueva?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-hubspot-deal-sauces
+    question: ¿Qué precio se pactó en el deal de Los Sauces 701 con Valcárcel?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-hubspot-deal-gardenias-paredes
+    question: ¿Cuánto ofreció la familia Paredes por Las Gardenias 455?
+    visible_to: [cp-rosa, cp-diego, cp-lucia]
+  - item: cp-hubspot-deal-alameda-0907
+    question: ¿Qué comisión de renovación tiene el deal de Torre Alameda 907?
+    visible_to: [cp-rosa, cp-martin]
+  - item: cp-hubspot-note-cedros-104
+    question: How much was deducted from the Los Cedros 104 deposit at move-out?
+    visible_to: [cp-rosa, cp-martin]
+
 not_found_pairs:
   - name: private channel plan (es)
     restricted: ¿Qué es el plan Halcón?

@@ -560,3 +560,345 @@
   canary: AGCANARY-C442580760BB
   body: |
     El comité de inversiones evalúa comprar un local en la avenida Javier Prado Este.
+
+# --- Near-miss items (03 retrieval evals) ------------------------------------------------
+# Older versions, other units, other months and other buildings that share words with the
+# items the golden set expects, so keyword, vector and hybrid ranking can be told apart.
+
+- id: cp-drive-mirador-price-list-v1
+  source: drive
+  kind: sheet
+  title: Lista de precios Mirador del Parque (julio 2026, reemplazada)
+  location: Drive / Ventas / Mirador del Parque / Archivo
+  updated: 2026-07-01
+  label: confidential
+  tags: [price-list, presales, mirador]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-9592F575930F
+  columns: [Unidad, Piso, Dormitorios, Área m², Precio lista USD, Estado]
+  rows:
+    - ["201", "2", "1", "52", "139,000", Disponible]
+    - ["305", "3", "2", "74", "169,000", Disponible]
+    - ["502", "5", "2", "78", "182,000", Disponible]
+    - ["604", "6", "2", "80", "188,000", Disponible]
+    - ["803", "8", "3", "98", "229,000", Disponible]
+    - ["1501", "15", "3", "120", "298,000", Disponible]
+
+- id: cp-drive-mirador-parking-prices
+  source: drive
+  kind: sheet
+  title: Precios de estacionamientos y depósitos Mirador del Parque
+  location: Drive / Ventas / Mirador del Parque
+  updated: 2026-10-01
+  label: confidential
+  tags: [price-list, presales, mirador]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-18D75070B4C2
+  columns: [Código, Tipo, Sótano, Precio USD, Estado]
+  rows:
+    - [E-01, Estacionamiento simple, "1", "14,000", Disponible]
+    - [E-02, Estacionamiento doble, "1", "24,500", Separado]
+    - [E-15, Estacionamiento simple, "2", "12,500", Disponible]
+    - [D-03, Depósito 4 m², "2", "4,800", Disponible]
+
+- id: cp-drive-mirador-obra-avance
+  source: drive
+  kind: doc
+  title: Informe de avance de obra Mirador del Parque - octubre 2026
+  location: Drive / Ventas / Mirador del Parque
+  updated: 2026-11-04
+  label: internal
+  tags: [presales, mirador, construction]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-95FB344C9BE7
+  body: |
+    Avance físico al 31 de octubre de 2026: 18%, contra 20% programado. La excavación y los
+    muros anclados del sótano 2 están terminados; la cimentación avanza en el eje norte.
+    El retraso de dos semanas se debe a la demora en la licencia de interferencia de vías.
+    Inversiones Altamira mantiene la entrega estimada en el segundo semestre de 2028.
+    Próximo hito: inicio de la estructura del primer piso en enero de 2027.
+
+- id: cp-drive-brochure-mirador-en
+  source: drive
+  kind: doc
+  title: Mirador del Parque brochure (English edition)
+  location: Drive / Marketing / Publicado
+  updated: 2026-10-10
+  label: public
+  tags: [brochure, presales, mirador]
+  acl: [anyone]
+  body: |
+    Mirador del Parque: park-front living in Jesús María, Lima. One, two and three bedroom
+    apartments from 52 to 120 m², with a rooftop pool, barbecue area and coworking room.
+    Estimated delivery: second half of 2028. Developed by Inversiones Altamira S.A.C. and
+    marketed exclusively by Casa Prado Inmobiliaria. Ask our team about prices and financing.
+
+- id: cp-drive-listing-monte-azul
+  source: drive
+  kind: doc
+  title: Aviso publicado - venta casa Calle Monte Azul 318
+  location: Drive / Marketing / Publicado
+  updated: 2026-10-20
+  label: public
+  tags: [sales, listing]
+  acl: [anyone]
+  body: |
+    Venta de casa de un piso en Calle Monte Azul 318, Santiago de Surco. Terreno de 160 m²,
+    3 dormitorios, patio con terraza techada y cochera para un auto. Precio de lista:
+    USD 298,000. Casa usada, techos recién impermeabilizados en 2025.
+
+- id: cp-drive-listing-cedros-205
+  source: drive
+  kind: doc
+  title: Aviso publicado - alquiler Edificio Los Cedros 205 (retirado)
+  location: Drive / Marketing / Retirados
+  updated: 2026-05-15
+  label: public
+  tags: [rentals, listing]
+  acl: [anyone]
+  body: |
+    Se alquila departamento de 2 dormitorios en el Edificio Los Cedros, piso 2, 64 m².
+    Renta mensual PEN 2,500, mantenimiento no incluido. Requisitos: garantía de dos meses.
+    Aviso retirado: el departamento se alquiló en mayo de 2026.
+
+- id: cp-drive-promesa-sauces-draft
+  source: drive
+  kind: contract
+  title: Borrador promesa de compraventa Jirón Los Sauces 1020 dpto 701
+  location: Drive / Ventas / Reventa
+  updated: 2026-11-06
+  label: confidential
+  tags: [sales, contract]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-129D552F799C
+  body: |
+    Cláusula primera. Las partes. La vendedora, propietaria del departamento 701 de Jirón Los
+    Sauces 1020, y el comprador, Ernesto Valcárcel.
+    Cláusula segunda. Precio. USD 183,000, pagados con crédito hipotecario.
+    Cláusula tercera. Arras. El comprador entrega arras de USD 9,000 a la firma.
+    Cláusula cuarta. Plazo. La escritura pública se otorgará a más tardar el 20 de diciembre
+    de 2026.
+    Cláusula quinta. Penalidad. Si el comprador desiste, pierde las arras; si la vendedora
+    desiste, devuelve las arras más una penalidad de USD 4,500.
+
+- id: cp-drive-title-check-sauces
+  source: drive
+  kind: doc
+  title: Estudio de títulos Jirón Los Sauces 1020 dpto 701
+  location: Drive / Ventas / Reventa
+  updated: 2026-11-02
+  label: confidential
+  tags: [sales, title-check]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-A2966598E5E0
+  body: |
+    Revisión de la partida registral del departamento 701 de Jirón Los Sauces 1020.
+    Observación única: el estacionamiento 14 figura inscrito a nombre del anterior
+    propietario; la vendedora debe inscribir la compraventa de 2019 antes de la escritura.
+    Sin hipotecas, cargas ni gravámenes. Arbitrios y predial al día.
+
+- id: cp-drive-tasacion-gardenias
+  source: drive
+  kind: doc
+  title: Tasación comercial Calle Las Gardenias 455
+  location: Drive / Ventas / Reventa
+  updated: 2026-08-28
+  label: confidential
+  tags: [sales, valuation]
+  acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-CE417706251B
+  body: |
+    Tasación del inmueble de Calle Las Gardenias 455, Santiago de Surco, al 25 de agosto de
+    2026. Terreno 210 m² registrales, construcción 245 m² en dos pisos. Valor comercial:
+    USD 368,000. Valor de realización: USD 331,000. El perito recomienda sanear la
+    diferencia de área antes de ofertar a compradores con crédito hipotecario.
+
+- id: cp-drive-commission-policy-2025
+  source: drive
+  kind: doc
+  title: Política de comisiones 2025 (derogada)
+  location: Drive / Políticas / Archivo
+  updated: 2025-01-08
+  label: internal
+  tags: [policy]
+  acl: [domain:casaprado.example]
+  canary: AGCANARY-7D9D455E1B05
+  body: |
+    Vigente hasta el 31 de diciembre de 2025; reemplazada por la política 2026.
+    1. Ventas de reventa. El asesor recibe el 25% de la comisión cobrada al cliente.
+    2. Proyectos en preventa. El asesor recibe el 20% de la comisión cobrada al desarrollador.
+    3. Alquileres. El asesor recibe el 50% del primer mes de renta cobrado como comisión.
+
+- id: cp-drive-lease-cedros-104
+  source: drive
+  kind: contract
+  title: Contrato de arrendamiento Los Cedros 104 (vencido)
+  location: Drive / Alquileres / Contratos
+  updated: 2025-09-28
+  label: confidential
+  tags: [contract, rentals]
+  acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-D3D4848D0568
+  body: |
+    Cláusula primera. Inmueble. Departamento 104 del Edificio Los Cedros, 1 dormitorio.
+    Cláusula segunda. Plazo. Doce meses, del 1 de octubre de 2025 al 30 de septiembre de 2026;
+    el arrendatario no renovó.
+    Cláusula tercera. Renta. La renta mensual es de PEN 1,950, mantenimiento incluido.
+    Cláusula cuarta. Garantía. PEN 3,900, dos meses de renta.
+
+- id: cp-drive-renewal-alameda-0907
+  source: drive
+  kind: contract
+  title: Adenda de renovación Torre Alameda 907
+  location: Drive / Alquileres / Contratos
+  updated: 2026-10-20
+  label: confidential
+  tags: [contract, rentals, renewal]
+  acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-4FB6B0840488
+  body: |
+    Cláusula primera. Renovación. Se renueva por doce meses, del 1 de noviembre de 2026 al
+    31 de octubre de 2027, el arrendamiento del departamento 907 de Torre Alameda.
+    Cláusula segunda. Nueva renta. La renta mensual se mantiene en PEN 2,900.
+    Cláusula tercera. Garantía. La garantía sigue en PEN 5,800; no hay monto por completar.
+
+- id: cp-drive-rental-portfolio-2026-06
+  source: drive
+  kind: sheet
+  title: Cartera de alquileres (corte junio 2026)
+  location: Drive / Alquileres / Archivo
+  updated: 2026-06-30
+  label: internal
+  tags: [rentals, inventory]
+  acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-E30598DBB209
+  columns: [Inmueble, Dormitorios, Renta PEN, Estado, Disponible desde]
+  rows:
+    - [Edificio Los Cedros 104, "1", "1,950", Alquilado, 2026-10-01]
+    - [Edificio Los Cedros 205, "2", "2,500", Alquilado, 2027-05-01]
+    - [Torre Alameda 905, "2", "3,100", Alquilado, 2026-12-01]
+    - [Torre Alameda 1204, "3", "3,300", Alquilado, 2026-12-01]
+
+- id: cp-drive-screening-alameda-0907
+  source: drive
+  kind: doc
+  title: Evaluación de inquilino Torre Alameda 907
+  location: Drive / Alquileres / Evaluaciones
+  updated: 2025-10-15
+  label: restricted
+  tags: [tenant-screening, rentals]
+  acl: [user:martin.huaman@casaprado.example, user:rosa.prado@casaprado.example]
+  canary: AGCANARY-03E865696964
+  body: |
+    Postulante: Sofía Bustamante Ríos, médica residente, contrato con el hospital hasta 2028.
+    Ingresos mensuales verificados: PEN 9,200. Central de riesgos: sin deudas. Aval: no
+    requerido. Resultado: aprobada con garantía de dos meses.
+
+- id: cp-drive-fees-alameda-2026-08
+  source: drive
+  kind: sheet
+  title: Estado de cuotas de mantenimiento Torre Alameda agosto 2026
+  location: Drive / Edificios / Torre Alameda
+  updated: 2026-09-05
+  label: confidential
+  tags: [fee-statement, buildings, alameda]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example, user:jorge.ccori@servitecandino.example]
+  canary: AGCANARY-B12EE528CD7C
+  columns: [Departamento, Propietario, Cuota mensual PEN, Meses adeudados, Deuda PEN]
+  rows:
+    - ["304", Elena Gamarra, "450", "0", "0"]
+    - ["508", Óscar Valdez, "450", "2", "900"]
+    - ["1102", Familia Arana, "450", "0", "0"]
+
+- id: cp-drive-fees-cedros-2026-09
+  source: drive
+  kind: sheet
+  title: Estado de cuotas de mantenimiento Los Cedros septiembre 2026
+  location: Drive / Edificios / Los Cedros
+  updated: 2026-10-05
+  label: confidential
+  tags: [fee-statement, cedros, buildings]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-130B3AE1597E
+  columns: [Departamento, Propietario, Cuota mensual PEN, Meses adeudados, Deuda PEN]
+  rows:
+    - ["302", Patricia Lazo, "320", "2", "640"]
+    - ["501", Michael Grant, "320", "1", "320"]
+
+- id: cp-drive-ot-cedros-0405
+  source: drive
+  kind: doc
+  title: Orden de trabajo OT-0405 Los Cedros - bomba de agua
+  location: Drive / Edificios / Los Cedros
+  updated: 2026-11-09
+  label: internal
+  tags: [work-order, cedros, buildings]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-63F96103D64D
+  body: |
+    OT-0405. Edificio Los Cedros, cuarto de bombas. Problema: el tablero de la bomba de agua
+    se dispara por sobrecarga. Proveedor: Electro Bombas Perú. Trabajo: cambio del
+    contactor y del relé térmico. Estado: terminada el 9 de noviembre de 2026, costo PEN 780.
+
+- id: cp-drive-ot-alameda-0388
+  source: drive
+  kind: doc
+  title: Orden de trabajo OT-0388 Torre Alameda - bomba de agua (marzo 2026)
+  location: Drive / Edificios / Torre Alameda
+  updated: 2026-03-21
+  label: internal
+  tags: [work-order, buildings, alameda]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example, user:jorge.ccori@servitecandino.example]
+  canary: AGCANARY-051AD39C3FB4
+  body: |
+    OT-0388. Torre Alameda, cuarto de bombas. Problema: ruido en el rodamiento de la bomba
+    de agua número 2. Asignada a: Jorge Ccori, Servitec Andino. Trabajo: cambio de
+    rodamientos y alineamiento. Estado: terminada el 20 de marzo de 2026.
+
+- id: cp-drive-junta-cedros-acta
+  source: drive
+  kind: doc
+  title: Acta de junta de propietarios Los Cedros
+  location: Drive / Edificios / Los Cedros
+  updated: 2026-09-30
+  label: confidential
+  tags: [cedros, buildings, minutes]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-653405FF350E
+  body: |
+    Junta ordinaria de propietarios del Edificio Los Cedros, 29 de septiembre de 2026, con 74%
+    de las participaciones. Acuerdo 1: pintar la fachada con Pinturas del Pacífico por
+    PEN 38,000. Acuerdo 2: financiarlo con el fondo de reserva y una cuota extraordinaria de
+    PEN 250 por departamento en noviembre de 2026. Acuerdo 3: renovar la póliza de seguro
+    del edificio con la misma aseguradora.
+
+- id: cp-drive-presupuesto-ascensor-alameda
+  source: drive
+  kind: sheet
+  title: Cotizaciones modernización ascensor 2 Torre Alameda
+  location: Drive / Edificios / Torre Alameda
+  updated: 2026-10-15
+  label: confidential
+  tags: [buildings, alameda, quotes]
+  acl: [group:administracion@casaprado.example, group:gerencia@casaprado.example]
+  canary: AGCANARY-9E4491BD5219
+  columns: [Proveedor, Monto PEN, Plazo semanas, Garantía meses]
+  rows:
+    - [Elevadores Pacífico S.A.C., "86,000", "8", "24"]
+    - [Ascensores Lima Norte, "92,500", "10", "18"]
+    - [TecnoLift Perú, "79,000", "14", "12"]
+
+- id: cp-drive-reglamento-alameda
+  source: drive
+  kind: doc
+  title: Reglamento interno Torre Alameda (extracto)
+  location: Drive / Edificios / Torre Alameda
+  updated: 2025-03-01
+  label: internal
+  tags: [buildings, alameda, rules]
+  acl: [domain:casaprado.example]
+  canary: AGCANARY-C92B6A48373E
+  body: |
+    Mascotas: se permiten mascotas de hasta 15 kg, siempre con correa en las áreas comunes.
+    Mudanzas: de lunes a sábado de 8:00 a 17:00, con aviso a la administración 48 horas
+    antes. Ruidos: silencio entre las 22:00 y las 7:00. Piscina: no hay piscina en el edificio.
