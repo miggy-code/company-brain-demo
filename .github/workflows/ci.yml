@@ -35,11 +35,11 @@ jobs:
         with:
           path: company-brain-demo
       # agentgate is not on PyPI at this version; the brain depends on it by path
-      # (../agentgate), pinned here to the commit this repo was tested against (U1, source ACLs).
+      # (../agentgate), pinned here to the merged U1 commit (source ACLs) this repo was tested against.
       - uses: actions/checkout@v4
         with:
           repository: miggy-code/agentgate
-          ref: edba7478806b056cfbffcc3c085fdb30de25b381
+          ref: 54d70232990c7a29da37b1a81a5f69c07e138b42
           path: agentgate
       - uses: astral-sh/setup-uv@v6
         with:
