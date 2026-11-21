@@ -71,6 +71,8 @@ class MockStats:
     requests: int = 0
     rejected: int = 0
     paths: list[str] = field(default_factory=list)
+    # Request bodies as the provider received them (after the proxy).
+    bodies: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -163,6 +165,7 @@ class _Handler(BaseHTTPRequestHandler):
         stats = self.server.stats
         stats.requests += 1
         stats.paths.append(self.path)
+        stats.bodies.append(body)
         presented = self.headers.get("x-api-key") or self.headers.get("authorization") or ""
         if presented.removeprefix("Bearer ") != self.server.key:
             stats.rejected += 1

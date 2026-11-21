@@ -7,10 +7,10 @@ unknown fields are errors, so a typo cannot silently change behaviour.
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 Slug = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]*$", max_length=64)]
 Language = Literal["es", "en"]
@@ -38,6 +38,18 @@ class ModelConfig(_Strict):
     # The provider origin the agentgate proxy forwards to. The brain never calls it directly.
     upstream: str = Field(pattern=r"^https?://[^\s/]+$")
     max_output_tokens: int = Field(ge=256, le=128_000)
+    # Pinned sampling for reproducible evals (DeepSeek: thinking mode ignores temperature, and
+    # reasoning_effort "none" turns thinking off). OpenAI-compatible only: agentgate's
+    # Anthropic admission denies effort (U6). Unset means the provider's default.
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    reasoning_effort: str | None = Field(default=None, pattern=r"^[a-z]{1,16}$")
+
+    @model_validator(mode="after")
+    def _sampling_for_openai_compatible(self) -> Self:
+        pinned = self.temperature is not None or self.reasoning_effort is not None
+        if pinned and self.provider is not Provider.OPENAI_COMPATIBLE:
+            raise ValueError("temperature and reasoning_effort are for openai_compatible models")
+        return self
 
 
 class Business(_Strict):

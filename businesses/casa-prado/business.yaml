@@ -14,3 +14,7 @@ model:
   name: deepseek-flash
   upstream: https://api.deepseek.com
   max_output_tokens: 4000
+  # Pinned for reproducible evals: thinking off (DeepSeek ignores temperature while
+  # thinking, which is on by default) and greedy sampling. DeepSeek takes no seed.
+  temperature: 0
+  reasoning_effort: none
