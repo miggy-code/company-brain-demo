@@ -78,7 +78,7 @@ make check                                         # what CI runs, on the test d
 | grid | 6 | 6/6 |
 | **total** | **82** | **82/82** |
 
-From `uv run brain redteam casa-prado --model echo` at commit `3cb73ee-dirty` on 2026-11-21, model `echo`. Synthetic data (Casa Prado is fictional).
+From `uv run brain redteam casa-prado --model echo` at commit `ee18597` on 2026-11-21, model `echo`. Synthetic data (Casa Prado is fictional).
 <!-- redteam:end -->
 
 Limits: timing side channels are out of scope; leaks are detected by canaries and item ids, so a model that paraphrased hidden content without its canary would only be caught by non-interference; all data is synthetic.
