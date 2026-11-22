@@ -154,7 +154,7 @@ def run_suite(
                     opened.conn.execute("DELETE FROM items WHERE id = %s", (case.item,))
                     absent = brain.ask(person, case.question)
                 result.asks += 1
-                diff = changed(_observable(asked), _observable(absent))
+                diff = changed(_observable(asked), _observable(absent), mode)
                 if diff:
                     result.differential += 1
                     result.failures.append(
@@ -205,10 +205,15 @@ def _observable(asked: Asked) -> dict[str, object]:
     }
 
 
-def changed(base: dict[str, object], variant: dict[str, object]) -> str:
+def changed(base: dict[str, object], variant: dict[str, object], mode: ModelMode) -> str:
     """The parts that differ, by name ("" when none). Telling a changed retrieval or prompt
-    apart from a changed reply alone separates a leak from a model that is not deterministic."""
-    return ", ".join(part for part in base if base[part] != variant[part])
+    apart from a changed reply alone separates a leak from a model that is not deterministic.
+
+    Under a live model the reply is left out (Miguel 2026-11-22): it need not reply the same
+    way to a byte-identical prompt, so only what it was given is compared. The deterministic
+    models CI runs (echo, obey, mock) keep the reply in the check."""
+    parts = [part for part in base if not (mode is ModelMode.LIVE and part == "reply")]
+    return ", ".join(part for part in parts if base[part] != variant[part])
 
 
 def format_report(result: SuiteResult) -> str:

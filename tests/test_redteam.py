@@ -49,3 +49,15 @@ def test_grid_runs_live_with_the_operators_keys(
             runner.grid()
 
     assert seen == [keys]
+
+
+def test_a_live_reply_only_difference_is_not_interference() -> None:
+    # A live model need not reply the same way to a byte-identical prompt, so under it only
+    # what the model was given counts; deterministic models keep the reply in the check.
+    base = {"chunks": ("a#1",), "prompt": ("s", "u"), "reply": ("one", (), "es", False)}
+    reworded = base | {"reply": ("two", (), "es", False)}
+    reordered = base | {"chunks": ("b#1",), "reply": ("two", (), "es", False)}
+
+    assert permissions.changed(base, reworded, ModelMode.LIVE) == ""
+    assert permissions.changed(base, reordered, ModelMode.LIVE) == "chunks"
+    assert permissions.changed(base, reworded, ModelMode.MOCK) == "reply"

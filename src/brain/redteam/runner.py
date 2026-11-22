@@ -217,7 +217,7 @@ class Runner:
         with conn.transaction(force_rollback=True):
             conn.execute("DELETE FROM items WHERE id = ANY(%s)", (outside,))
             removed = brain.ask(asker, question, audience=audience, thread=_copy(before))
-        diff = changed(base, observable(removed))
+        diff = changed(base, observable(removed), self._mode)
         if diff:
             result.failures.append(f"removing {len(outside)} hidden items changes the {diff}")
         for count in scenario.decoys:
@@ -226,7 +226,7 @@ class Runner:
             with conn.transaction(force_rollback=True):
                 insert_items(conn, decoy_items(self._decoys, count), self._opened.searcher.embedder)
                 added = brain.ask(asker, question, audience=audience, thread=_copy(before))
-            diff = changed(base, observable(added))
+            diff = changed(base, observable(added), self._mode)
             if diff:
                 result.failures.append(f"adding {count} restricted decoys changes the {diff}")
 
