@@ -116,8 +116,16 @@ def expected_visibility(
 
 
 def run_suite(
-    opened: OpenBusiness, items: list[Item], suite: PermissionSuite, mode: ModelMode
+    opened: OpenBusiness,
+    items: list[Item],
+    suite: PermissionSuite,
+    mode: ModelMode,
+    *,
+    pairs: bool = True,
+    keys_file: Path | None = None,
 ) -> SuiteResult:
+    """`pairs=False` skips the not-found pairs, for models that never decline (echo, obey).
+    `keys_file` is the operator's provider keys file, for a live model."""
     people = {p.id for p in opened.directory}
     expected = expected_visibility(suite, items, people)
     canary_item = {item.canary: item.id for item in items if item.canary is not None}
@@ -126,7 +134,7 @@ def run_suite(
         result = PersonResult(person.id)
         mine = expected[person.id]
 
-        with open_run(opened, person, mode) as brain:
+        with open_run(opened, person, mode, keys_file) as brain:
             audience = [opened.directory.principals_for(person)]
             actual = set(opened.searcher.visible_items(audience, brain.policy_filter(person)))
             for item_id in sorted(actual ^ mine):
@@ -146,10 +154,13 @@ def run_suite(
                     opened.conn.execute("DELETE FROM items WHERE id = %s", (case.item,))
                     absent = brain.ask(person, case.question)
                 result.asks += 1
-                if _observable(asked) != _observable(absent):
+                diff = changed(_observable(asked), _observable(absent), mode)
+                if diff:
                     result.differential += 1
-                    result.failures.append(f"DIFFERENTIAL {case.item} changes what they see")
-            for pair in suite.not_found_pairs:
+                    result.failures.append(
+                        f"DIFFERENTIAL {case.item} changes what they see ({diff})"
+                    )
+            for pair in suite.not_found_pairs if pairs else ():
                 if person.id not in pair.askers:
                     continue
                 restricted = brain.ask(person, pair.restricted)
@@ -183,12 +194,26 @@ def _record_leaks(result: PersonResult, leaked: list[str], asked_for: str) -> No
         result.failures.append(f"LEAK asking about {asked_for}: item {item_id}")
 
 
-def _observable(asked: Asked) -> tuple[object, ...]:
+def _observable(asked: Asked) -> dict[str, object]:
     hits = tuple(
         (h.chunk_id, h.text, h.keyword_rank, h.vector_rank, h.fused, h.rerank) for h in asked.hits
     )
     answer = asked.answer
-    return (hits, asked.permitted_chunks, answer.text(), answer.cited, answer.language)
+    return {
+        "retrieval": (hits, asked.permitted_chunks),
+        "reply": (answer.text(), answer.cited, answer.language),
+    }
+
+
+def changed(base: dict[str, object], variant: dict[str, object], mode: ModelMode) -> str:
+    """The parts that differ, by name ("" when none). Telling a changed retrieval or prompt
+    apart from a changed reply alone separates a leak from a model that is not deterministic.
+
+    Under a live model the reply is left out (Miguel 2026-11-22): it need not reply the same
+    way to a byte-identical prompt, so only what it was given is compared. The deterministic
+    models CI runs (echo, obey, mock) keep the reply in the check."""
+    parts = [part for part in base if not (mode is ModelMode.LIVE and part == "reply")]
+    return ", ".join(part for part in parts if base[part] != variant[part])
 
 
 def format_report(result: SuiteResult) -> str:

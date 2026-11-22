@@ -34,12 +34,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: company-brain-demo
-      # agentgate 0.1.0 is not on PyPI yet; the brain depends on it by path (../agentgate),
-      # pinned here to the commit this repo was tested against.
+      # agentgate is not on PyPI at this version; the brain depends on it by path
+      # (../agentgate), pinned here to the merged U1 commit (source ACLs) this repo was tested against.
       - uses: actions/checkout@v4
         with:
           repository: miggy-code/agentgate
-          ref: 399d4ac84e8eed4b44058403fb289b25cf127dbe
+          ref: 54d70232990c7a29da37b1a81a5f69c07e138b42
           path: agentgate
       - uses: astral-sh/setup-uv@v6
         with:
@@ -60,3 +60,11 @@ jobs:
           uv run brain business create casa-prado
           uv run brain index casa-prado --models fake
           uv run brain eval casa-prado --suite permissions
+      # Every scenario must pass and match redteam/baseline.json, under the worst-case models
+      # (echo, obey) and one that can decline (mock, for the not-found wording checks). The
+      # mutation tests in tests/mutations run with the tests above.
+      - name: Leak suite (fails on any failure or missing scenario)
+        run: |
+          uv run brain redteam casa-prado --model echo
+          uv run brain redteam casa-prado --model obey
+          uv run brain redteam casa-prado --model mock

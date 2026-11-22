@@ -31,6 +31,22 @@ def rebuild_index(
     conn: psycopg.Connection, items: Sequence[Item], embedder: Embedder, reranker: Reranker
 ) -> IndexSummary:
     """Replace the index with `items`, in one transaction."""
+    with conn.transaction():
+        conn.execute("TRUNCATE items, chunks, postings, index_meta")
+        chunks, postings = insert_items(conn, items, embedder)
+        with conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO index_meta (key, value) VALUES (%s, %s)",
+                [("embedder", embedder.name), ("reranker", reranker.name)],
+            )
+    return IndexSummary(len(items), chunks, postings, embedder.name, reranker.name)
+
+
+def insert_items(
+    conn: psycopg.Connection, items: Sequence[Item], embedder: Embedder
+) -> tuple[int, int]:
+    """Write items with their ACL, chunks, postings and embeddings in the caller's
+    transaction. Returns (chunks, postings) written."""
     chunked = [(item, chunk_item(item)) for item in items]
     all_chunks = [chunk for _, chunks in chunked for chunk in chunks]
     titles = {item.id: item.title for item in items}
@@ -38,59 +54,52 @@ def rebuild_index(
     vectors = embedder.embed_documents([f"{titles[c.item_id]}\n{c.text}" for c in all_chunks])
     by_chunk = dict(zip((c.id for c in all_chunks), vectors, strict=True))
     postings = 0
-    with conn.transaction():
-        conn.execute("TRUNCATE items, chunks, postings, index_meta")
-        for item, chunks in chunked:
+    for item, chunks in chunked:
+        conn.execute(
+            "INSERT INTO items (id, source, kind, title, location, updated, label, tags,"
+            " facts_key, acl_principals) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (
+                item.id,
+                item.source,
+                item.kind,
+                item.title,
+                item.location,
+                item.updated,
+                item.label,
+                sorted(item.tags),
+                facts_key(item.label, item.tags),
+                sorted(item.acl),
+            ),
+        )
+        title_terms = Counter(tokenize(item.title))
+        for chunk in chunks:
+            body_terms = Counter(tokenize(chunk.text))
             conn.execute(
-                "INSERT INTO items (id, source, kind, title, location, updated, label, tags,"
-                " facts_key, acl_principals) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "INSERT INTO chunks (id, item_id, ord, location, body, title_len, body_len,"
+                " embedding) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector)",
                 (
+                    chunk.id,
                     item.id,
-                    item.source,
-                    item.kind,
-                    item.title,
-                    item.location,
-                    item.updated,
-                    item.label,
-                    sorted(item.tags),
-                    facts_key(item.label, item.tags),
-                    sorted(item.acl),
+                    chunk.ord,
+                    chunk.location,
+                    chunk.text,
+                    title_terms.total(),
+                    body_terms.total(),
+                    by_chunk[chunk.id],
                 ),
             )
-            title_terms = Counter(tokenize(item.title))
-            for chunk in chunks:
-                body_terms = Counter(tokenize(chunk.text))
-                conn.execute(
-                    "INSERT INTO chunks (id, item_id, ord, location, body, title_len, body_len,"
-                    " embedding) VALUES (%s, %s, %s, %s, %s, %s, %s, %s::vector)",
-                    (
-                        chunk.id,
-                        item.id,
-                        chunk.ord,
-                        chunk.location,
-                        chunk.text,
-                        title_terms.total(),
-                        body_terms.total(),
-                        by_chunk[chunk.id],
-                    ),
+            rows = [
+                (term, chunk.id, title_terms[term], body_terms[term])
+                for term in sorted(title_terms.keys() | body_terms.keys())
+            ]
+            with conn.cursor() as cur:
+                cur.executemany(
+                    "INSERT INTO postings (term, chunk_id, title_tf, body_tf)"
+                    " VALUES (%s, %s, %s, %s)",
+                    rows,
                 )
-                rows = [
-                    (term, chunk.id, title_terms[term], body_terms[term])
-                    for term in sorted(title_terms.keys() | body_terms.keys())
-                ]
-                with conn.cursor() as cur:
-                    cur.executemany(
-                        "INSERT INTO postings (term, chunk_id, title_tf, body_tf)"
-                        " VALUES (%s, %s, %s, %s)",
-                        rows,
-                    )
-                postings += len(rows)
-        with conn.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO index_meta (key, value) VALUES (%s, %s)",
-                [("embedder", embedder.name), ("reranker", reranker.name)],
-            )
-    return IndexSummary(len(items), len(all_chunks), postings, embedder.name, reranker.name)
+            postings += len(rows)
+    return len(all_chunks), postings
 
 
 def index_models(conn: psycopg.Connection) -> tuple[str, str]:

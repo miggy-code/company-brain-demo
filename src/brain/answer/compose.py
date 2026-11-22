@@ -71,14 +71,28 @@ class Prompt:
     sources: dict[int, str]
 
 
-def build_prompt(business_name: str, question: str, hits: Sequence[Hit]) -> Prompt:
+def build_prompt(
+    business_name: str,
+    question: str,
+    hits: Sequence[Hit],
+    history: Sequence[tuple[str, str]] = (),
+) -> Prompt:
+    """The prompt over the kept chunks. `history` is the (question, answer) of each earlier
+    turn the history filter let through."""
     blocks = []
     for n, hit in enumerate(hits, 1):
         blocks.append(
             f'<source id="{n}" title="{_attr(hit.item_title)}" kind="{hit.kind}"'
             f' date="{hit.updated.isoformat()}">\n{hit.text}\n</source>'
         )
-    user = "<sources>\n" + "\n".join(blocks) + "\n</sources>\n\n"
+    user = ""
+    if history:
+        turns = "\n".join(
+            f"<turn>\n<asked>{asked}</asked>\n<answered>{answered}</answered>\n</turn>"
+            for asked, answered in history
+        )
+        user += f"<history>\n{turns}\n</history>\n\n"
+    user += "<sources>\n" + "\n".join(blocks) + "\n</sources>\n\n"
     user += f"<question>\n{question}\n</question>"
     return Prompt(
         system=SYSTEM_PROMPT.format(business=business_name),

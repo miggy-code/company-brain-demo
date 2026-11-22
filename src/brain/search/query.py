@@ -8,7 +8,7 @@ Fusion: reciprocal rank fusion (k 60) of the top 50 of each, then the reranker o
 30, keep k (8).
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -117,6 +117,11 @@ WHERE c.id = ANY(%(ids)s::text[]) AND {permission}
 
 _VISIBLE_ITEMS = "SELECT i.id FROM items i WHERE {permission} ORDER BY i.id"
 
+_VISIBLE_CHUNKS = """
+SELECT c.id FROM chunks c JOIN items i ON i.id = c.item_id
+WHERE c.id = ANY(%(ids)s::text[]) AND {permission}
+"""
+
 
 class Searcher:
     """Searches one business database with its index's embedder and reranker."""
@@ -125,6 +130,11 @@ class Searcher:
         self._conn = conn
         self._embedder = embedder
         self._reranker = reranker
+
+    @property
+    def embedder(self) -> Embedder:
+        """The index's embedder, for writing items that queries must match."""
+        return self._embedder
 
     def search(
         self, audience: Audience, policy: PolicyFilter, query: str, k: int = DEFAULT_K
@@ -186,6 +196,16 @@ class Searcher:
         """Ids of every item the audience may see: the ceiling the eval checks against."""
         permission = permission_clause(audience, policy)
         cur = self._conn.execute(sql.SQL(_VISIBLE_ITEMS).format(permission=permission))
+        return [str(row[0]) for row in cur.fetchall()]
+
+    def visible_chunks(
+        self, audience: Audience, policy: PolicyFilter, chunk_ids: Iterable[str]
+    ) -> list[str]:
+        """Which of `chunk_ids` the audience may see (for the history filter, G8)."""
+        permission = permission_clause(audience, policy)
+        cur = self._conn.execute(
+            sql.SQL(_VISIBLE_CHUNKS).format(permission=permission), {"ids": sorted(chunk_ids)}
+        )
         return [str(row[0]) for row in cur.fetchall()]
 
     def _vector_ids(self, permission: sql.Composable, query: str) -> list[str]:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 import psycopg
 from agentgate.audit.panoptes import PanoptesSink
@@ -14,7 +15,7 @@ from agentgate.world import World
 
 from brain.answer.models import answer_model
 from brain.answer.pipeline import Brain
-from brain.evals.mock_upstream import mock_upstream
+from brain.evals.mock_upstream import MockMode, mock_upstream
 from brain.gate.audit import AuditTrail
 from brain.gate.policy import (
     BusinessPolicy,
@@ -23,7 +24,7 @@ from brain.gate.policy import (
     open_business_world,
     prepare_world,
 )
-from brain.gate.session import model_session
+from brain.gate.session import ModelSession, model_session
 from brain.identity.people import Directory, Person, load_directory
 from brain.ingest.embedding import embedder_named
 from brain.ingest.index import index_models
@@ -34,8 +35,20 @@ from brain.tenancy.database import connect
 
 
 class ModelMode(StrEnum):
+    """live: the configured provider. The rest put the stand-in provider behind the real
+    proxy: mock answers by keyword relevance, echo and obey are the worst cases."""
+
     LIVE = "live"
     MOCK = "mock"
+    ECHO = "echo"
+    OBEY = "obey"
+
+
+_MOCK_MODES = {
+    ModelMode.MOCK: MockMode.RELEVANCE,
+    ModelMode.ECHO: MockMode.ECHO,
+    ModelMode.OBEY: MockMode.OBEY,
+}
 
 
 @dataclass
@@ -88,19 +101,36 @@ def open_run(
     max_usd: Decimal | None = None,
     max_calls: int | None = None,
 ) -> Iterator[Brain]:
-    """A run for `person` behind the model proxy. Mock mode puts the mock provider behind the
-    proxy, with a throwaway key; live mode needs the operator's keys file."""
+    """A run for `person` behind the model proxy. The mock modes put the stand-in provider
+    behind the proxy, with a throwaway key; live mode needs the operator's keys file."""
+    with open_session(
+        opened, person, mode, keys_file, max_usd=max_usd, max_calls=max_calls
+    ) as session:
+        yield make_brain(opened, person, session)
+
+
+@contextmanager
+def open_session(
+    opened: OpenBusiness,
+    person: Person,
+    mode: ModelMode,
+    keys_file: Path | None = None,
+    *,
+    max_usd: Decimal | None = None,
+    max_calls: int | None = None,
+) -> Iterator[ModelSession]:
+    """The model proxy run for `person`, with the stand-in provider behind it unless live."""
     model = opened.business.model
     with ExitStack() as stack:
         upstream: str | None = None
-        if mode is ModelMode.MOCK:
-            mock = stack.enter_context(mock_upstream())
+        if mode is not ModelMode.LIVE:
+            mock = stack.enter_context(mock_upstream(_MOCK_MODES[mode]))
             scratch = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="brain-")))
             keys_file = mock.write_keys_file(scratch / "keys.json", model.provider.value)
             upstream = mock.url
         elif keys_file is None:
             raise GateError("a live run needs --keys-file (or BRAIN_PROVIDER_KEYS_FILE)")
-        session = stack.enter_context(
+        yield stack.enter_context(
             model_session(
                 opened.world_paths,
                 person.id,
@@ -112,15 +142,29 @@ def open_run(
                 max_calls=max_calls,
             )
         )
-        sink = opened.world.sink
-        if not isinstance(sink, PanoptesSink):
-            raise GateError("the business world has no Panoptes audit log")
-        yield Brain(
-            business=opened.business,
-            directory=opened.directory,
-            conn=opened.conn,
-            searcher=opened.searcher,
-            policy=opened.policy,
-            model=answer_model(session),
-            audit=AuditTrail(sink.db, opened.business.id, session.run_id, person.id),
-        )
+
+
+def make_brain(
+    opened: OpenBusiness,
+    person: Person,
+    session: ModelSession,
+    *,
+    audit_db: Any = None,
+    policy: BusinessPolicy | None = None,
+) -> Brain:
+    """The brain for one run. `audit_db` and `policy` replace the real ones only to inject
+    faults (the leak suite's fail-closed scenarios)."""
+    sink = opened.world.sink
+    if not isinstance(sink, PanoptesSink):
+        raise GateError("the business world has no Panoptes audit log")
+    return Brain(
+        business=opened.business,
+        directory=opened.directory,
+        conn=opened.conn,
+        searcher=opened.searcher,
+        policy=opened.policy if policy is None else policy,
+        model=answer_model(session),
+        audit=AuditTrail(
+            sink.db if audit_db is None else audit_db, opened.business.id, session.run_id, person.id
+        ),
+    )
