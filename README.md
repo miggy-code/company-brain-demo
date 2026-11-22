@@ -15,7 +15,7 @@ A permission-aware company knowledge agent, shown on a synthetic business. Staff
 
 ## The demo business
 
-Casa Prado Inmobiliaria (`businesses/casa-prado/`) is a fictional Lima real estate company. It manages two buildings, presells the "Residencial Mirador del Parque" project for a developer, brokers new and used sales, and handles rentals. There are six people: the owner, a sales manager, a sales agent, a leasing agent, a building administrator and an outside maintenance technician. There are 48 items across simulated Drive, Gmail, Slack and HubSpot.
+Casa Prado Inmobiliaria (`businesses/casa-prado/`) is a fictional Lima real estate company. It manages two buildings, presells the "Residencial Mirador del Parque" project for a developer, brokers new and used sales, and handles rentals. There are six people: the owner, a sales manager, a sales agent, a leasing agent, a building administrator and an outside maintenance technician. There are 91 items across simulated Drive, Gmail, Slack and HubSpot, including near-miss items (an older price list, other months' fee statements, other units' contracts) that make retrieval harder.
 
 ## Run it
 
@@ -37,7 +37,8 @@ uv run brain ask casa-prado --as lucia.quispe@casaprado.example --model mock \
 ```bash
 uv run brain eval casa-prado --suite permissions   # mock model; exit 1 on any failure
 uv run brain redteam casa-prado --model obey       # leak suite; exit 1 on any failure
-uv run brain eval casa-prado --suite golden --keys-file <file>   # 16 questions, live model
+uv run brain eval casa-prado --suite retrieval    # recall@8 and MRR, four rankings, no model
+uv run brain eval casa-prado --suite ablation --keys-file <file>   # full evals, live model
 uv run panoptes session <run id> --db data/casa-prado/audit.db   # trace one answer
 make check                                         # what CI runs, on the test doubles
 ```
@@ -85,6 +86,33 @@ Reading the live run above: no scenario leaked a canary, an item or an invalid c
 
 Limits: timing side channels are out of scope; leaks are detected by canaries and item ids, so a model that paraphrased hidden content without its canary would only be caught by non-interference; all data is synthetic.
 
+## Evals
+
+The golden set (`businesses/casa-prado/evals/golden.yaml`) has 80 questions: 20 per business line, 40 in Spanish and 40 in English. 27 are cross-language (the question's language differs from every expected source's), 16 have no answer anywhere in the corpus, and 16 need two sources. Each asker may see every expected source, which is checked against the permission oracle when the set loads.
+
+`brain eval --suite ablation` runs every question as its asker through the full question path, under four rankings: BM25F alone, BGE-M3 vectors alone, both fused (RRF), and fused then reranked (production). It measures:
+
+- recall@8 and MRR on the expected sources;
+- citation precision: the grader judges whether each cited chunk supports its sentence;
+- answer correctness against reference facts;
+- correct not-found on the no-answer questions, and false not-found on the rest;
+- language match, with a language identifier run on the answer's own words (names and quoted values are removed first);
+- cost per answer, as settled by agentgate;
+- latency at p50 and p95.
+
+Each question is scored once, averaged over 3 repeats. Intervals are 95% bootstraps over questions, with a fixed seed. The answer model runs at temperature 0 with thinking off. DeepSeek takes no seed, so the repeats show the variance that remains.
+
+<!-- evals:start -->
+<!-- evals:end -->
+
+Caveats:
+- The grader is the answer model itself (`deepseek-flash`), so the grader-based numbers carry a self-preference risk.
+- Grader agreement is measured against a sample labelled by the agent (Claude), not by a person: `uv run brain eval casa-prado --suite agreement`.
+
+Gates:
+- In CI, `retrieval-gate` re-indexes with the pinned real models and fails if recall@8 or MRR for the production ranking drops below `evals/thresholds.yaml`.
+- CI never calls a live model. Instead it requires the newest live report in `reports/` to match the current prompts, grader and model config (a fingerprint), and to meet the answer thresholds. A prompt or model change therefore has to land with a new recorded run.
+
 ## Layout
 
 | Path | Owns |
@@ -95,7 +123,8 @@ Limits: timing side channels are out of scope; leaks are detected by canaries an
 | `src/brain/search/` | The permission predicate, BM25F + vector search, fusion, rerank |
 | `src/brain/gate/` | The only code that talks to agentgate and Panoptes: policy, model proxy runs, audit |
 | `src/brain/answer/` | Prompt, model clients, citation enforcement, the question pipeline |
-| `src/brain/evals/` | Permission suite, golden set, the mock provider (relevance, echo, obey) |
+| `src/brain/evals/` | Permission suite, golden set, ablations, grader, metrics, reports, the mock provider (relevance, echo, obey) |
+| `reports/` | Dated eval reports (JSON with every attempt, and a markdown table) |
 | `src/brain/redteam/` | Leak suite: scenarios, non-interference variants, runner, report, baseline |
 | `businesses/casa-prado/` | The synthetic business: config, people, items, agentgate policy, eval sets |
 

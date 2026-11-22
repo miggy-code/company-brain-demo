@@ -35,6 +35,8 @@ from brain.search.rerank import BgeReranker
 from brain.tenancy.config import Business, ConfigError, read_yaml, validate
 
 GATED = Ranking.HYBRID_RERANK
+README_START = "<!-- evals:start -->"
+README_END = "<!-- evals:end -->"
 
 
 class _Strict(BaseModel):
@@ -235,6 +237,27 @@ def markdown(report: dict[str, Any]) -> str:
         " self-preference risk.",
     ]
     return "\n".join(lines)
+
+
+def readme_block(report: dict[str, Any], report_path: Path) -> str:
+    meta = report["meta"]
+    model = meta["answer_model"]
+    stamp = (
+        f"From [`{report_path.as_posix()}`]({report_path.as_posix()}): `{meta['command']}` at"
+        f" commit `{meta['commit']}` on {meta['date']}, answer model and grader"
+        f" `{model['name']}`, {meta['questions']} questions x {meta['repeats']} repeats."
+        " Means with 95% bootstrap intervals over questions. Synthetic data (Casa Prado is"
+        " fictional)."
+    )
+    return "\n".join([README_START, summary_table(report), "", stamp, README_END])
+
+
+def write_readme(readme: Path, block: str) -> None:
+    text = readme.read_text(encoding="utf-8")
+    start, end = text.find(README_START), text.find(README_END)
+    if start == -1 or end == -1:
+        raise ConfigError(f"{readme}: missing the {README_START} / {README_END} markers")
+    readme.write_text(text[:start] + block + text[end + len(README_END) :], encoding="utf-8")
 
 
 def summary_table(report: dict[str, Any]) -> str:

@@ -38,9 +38,11 @@ from brain.evals.report import (
     format_summary,
     load_thresholds,
     newest_answer_report,
+    readme_block,
     require_clean_tree,
     write_report,
 )
+from brain.evals.report import write_readme as write_evals_readme
 from brain.gate.policy import GateError, InvariantError, open_business_world, prepare_world
 from brain.identity.people import load_directory
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
@@ -215,6 +217,9 @@ def evaluate(
     gate: Annotated[
         bool, typer.Option("--gate", help="retrieval: fail below the thresholds.")
     ] = False,
+    readme: Annotated[
+        bool, typer.Option("--readme", help="With --report: write the README evals table.")
+    ] = False,
     stats: Annotated[bool, typer.Option("--stats", help="golden: print the set's shape.")] = False,
     sample: Annotated[
         bool, typer.Option("--sample", help="agreement: print the blind labelling sheet.")
@@ -241,6 +246,8 @@ def evaluate(
         if check:
             _check_report(paths, reports_dir)
             return
+        if readme and not report:
+            raise ConfigError("--readme needs --report: the README table names its report")
         commit = require_clean_tree() if report else None
         items = load_items(paths.items_dir)
         business = load_business(paths)
@@ -301,8 +308,11 @@ def evaluate(
                     embedder=embedder,
                     reranker=reranker,
                 )
-                for written in write_report(reports_dir, built):
-                    typer.echo(f"wrote {written}")
+                json_path, md_path = write_report(reports_dir, built)
+                typer.echo(f"wrote {json_path} and {md_path}")
+                if readme:
+                    write_evals_readme(Path("README.md"), readme_block(built, json_path))
+                    typer.echo("wrote the README evals table")
             if gate:
                 problems = check_retrieval(summaries, load_thresholds(paths.thresholds_file))
                 for problem in problems:
