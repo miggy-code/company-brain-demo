@@ -3,9 +3,10 @@
 A report (`reports/<date>-<label>.json` and `.md`) is written only from a clean commit and
 records the command, models, revisions, sampling, n, repeats and the answer fingerprint.
 
-The answer fingerprint hashes everything that shapes an answer or its grade without being
-retrieval: the system prompt and schema, the grader's rubrics, the answer and grader
-modules' source, and the business's model block. CI cannot call a live model, so
+The answer fingerprint hashes everything that shapes an answer, its grade or its score
+without being retrieval: the system prompt and schema, the grader's rubrics, the source of
+the answer, pipeline, grader, language and aggregation modules, the business's model block
+and the golden set itself. CI cannot call a live model, so
 `check_report` stands in: the newest live report must carry the current fingerprint and
 meet the answer thresholds. A prompt or model change therefore lands with a fresh report.
 Retrieval is gated in CI directly (`check_retrieval`), with the real models.
@@ -27,7 +28,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 import brain.answer.compose as compose
 import brain.answer.models as models
+import brain.answer.pipeline as pipeline
+import brain.evals.ablation as ablation
 import brain.evals.grader as grader
+import brain.evals.language as language
 from brain.evals.ablation import AnswerRow, RankingSummary, RetrievalRow
 from brain.ingest.embedding import BgeM3Embedder
 from brain.search.query import Ranking
@@ -68,18 +72,16 @@ def load_thresholds(path: Path) -> Thresholds:
     return validate(Thresholds, read_yaml(path), path)
 
 
-def answer_fingerprint(business: Business) -> str:
+def answer_fingerprint(business: Business, golden_file: Path) -> str:
     digest = hashlib.sha256()
     parts = [
         compose.SYSTEM_PROMPT,
         json.dumps(compose.SCHEMA, sort_keys=True),
         grader.CORRECTNESS_SYSTEM,
         grader.CITATIONS_SYSTEM,
-        *(
-            Path(str(module.__file__)).read_text(encoding="utf-8")
-            for module in (compose, models, grader)
-        ),
+        *(_source(module) for module in (compose, models, pipeline, grader, language, ablation)),
         business.model.model_dump_json(),
+        golden_file.read_text(encoding="utf-8"),
     ]
     for part in parts:
         digest.update(hashlib.sha256(part.encode()).digest())
@@ -117,10 +119,10 @@ def newest_answer_report(reports_dir: Path) -> dict[str, Any]:
     found = []
     for path in sorted(reports_dir.glob("*.json")):
         report = json.loads(path.read_text(encoding="utf-8"))
-        if report["meta"].get("answers"):
+        if report["meta"].get("answers") and report["meta"].get("model_mode") == "live":
             found.append(report)
     if not found:
-        raise ConfigError(f"{reports_dir}: no report with answer metrics")
+        raise ConfigError(f"{reports_dir}: no live report with answer metrics")
     return max(found, key=lambda r: (r["meta"]["date"], r["meta"]["written"]))
 
 
@@ -157,6 +159,7 @@ def build_report(
     commit: str,
     command: str,
     business: Business,
+    golden_file: Path,
     model_mode: str,
     repeats: int,
     question_count: int,
@@ -185,7 +188,7 @@ def build_report(
             "questions": question_count,
             "repeats": repeats,
             "answers": len(answers),
-            "answer_fingerprint": answer_fingerprint(business),
+            "answer_fingerprint": answer_fingerprint(business, golden_file),
             "python": platform.python_version(),
             "platform": platform.platform(),
             "notes": [

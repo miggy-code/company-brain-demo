@@ -22,6 +22,7 @@ from brain.answer.compose import Answer
 from brain.answer.models import ModelError
 from brain.evals.ablation import answer_rows, retrieval_rows, summarize
 from brain.evals.agreement import (
+    chunk_sources,
     format_agreement,
     labelling_sheet,
     load_labels,
@@ -299,6 +300,7 @@ def evaluate(
                     commit=commit,
                     command=_command_line(),
                     business=opened.business,
+                    golden_file=paths.evals_dir / "golden.yaml",
                     model_mode=mode.value if answers else "none",
                     repeats=reps,
                     question_count=n,
@@ -328,7 +330,9 @@ def _check_report(paths: BusinessPaths, reports_dir: Path) -> None:
     business = load_business(paths)
     newest = newest_answer_report(reports_dir)
     problems = check_report(
-        newest, load_thresholds(paths.thresholds_file), answer_fingerprint(business)
+        newest,
+        load_thresholds(paths.thresholds_file),
+        answer_fingerprint(business, paths.evals_dir / "golden.yaml"),
     )
     meta = newest["meta"]
     typer.echo(f"newest live report: {meta['label']} ({meta['date']}, commit {meta['commit']})")
@@ -350,8 +354,8 @@ def _agreement(
             tempfile.TemporaryDirectory(prefix="brain-eval-") as scratch,
             open_business(business_id, businesses_dir, Path(scratch)) as opened,
         ):
-            rows = opened.conn.execute("SELECT id, body FROM chunks").fetchall()
-        sheet = labelling_sheet(loaded, golden, {str(r[0]): str(r[1]) for r in rows})
+            sources = chunk_sources(opened.conn)
+        sheet = labelling_sheet(loaded, golden, sources)
         typer.echo(yaml.safe_dump(sheet, allow_unicode=True, sort_keys=False, width=100))
         return
     labels = load_labels(labels_path)

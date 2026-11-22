@@ -14,8 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+import psycopg
 from pydantic import BaseModel, ConfigDict, Field
 
+from brain.evals.ablation import source_text
 from brain.evals.golden import GoldenSet
 from brain.evals.metrics import cohen_kappa
 from brain.tenancy.config import ConfigError, read_yaml, validate
@@ -105,6 +107,15 @@ def labelling_sheet(
             for n, p in pairs
         ],
     }
+
+
+def chunk_sources(conn: psycopg.Connection) -> dict[str, str]:
+    """Every chunk as the grader read it (item title, then the chunk), so a labeller judges
+    the same evidence."""
+    rows = conn.execute(
+        "SELECT c.id, i.title, c.body FROM chunks c JOIN items i ON i.id = c.item_id"
+    ).fetchall()
+    return {str(r[0]): source_text(str(r[1]), str(r[2])) for r in rows}
 
 
 def load_labels(path: Path) -> AgreementLabels:

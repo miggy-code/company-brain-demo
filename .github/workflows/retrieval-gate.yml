@@ -2,17 +2,14 @@ name: retrieval-gate
 
 # Recall@8 and MRR over the golden set with the real, pinned BGE-M3 and bge-reranker-v2-m3
 # (CPU), failing below businesses/casa-prado/evals/thresholds.yaml. Runs on changes that can
-# move retrieval. No model API call: search only.
+# move retrieval: search and ingest, but also who may see what (people, policy, oracle, the
+# gate and the audience filter) and how the golden set is loaded and scored. No model API
+# call: search only.
 on:
   pull_request:
     paths:
-      - "src/brain/search/**"
-      - "src/brain/ingest/**"
-      - "src/brain/evals/ablation.py"
-      - "src/brain/evals/metrics.py"
-      - "businesses/*/items/**"
-      - "businesses/*/evals/golden.yaml"
-      - "businesses/*/evals/thresholds.yaml"
+      - "src/brain/**"
+      - "businesses/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/retrieval-gate.yml"

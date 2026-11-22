@@ -30,7 +30,7 @@ from brain.evals.language import answer_language
 from brain.evals.metrics import bootstrap_mean, mrr, percentile, recall_at_k
 from brain.identity.people import Person
 from brain.runtime import ModelMode, OpenBusiness, make_brain, open_session
-from brain.search.query import DEFAULT_K, Ranking
+from brain.search.query import DEFAULT_K, Hit, Ranking
 
 
 @dataclass(frozen=True)
@@ -64,7 +64,11 @@ class AnswerRow:
     grader_calls: tuple[str, ...]
     answer_usd: Decimal = Decimal(0)
     grader_usd: Decimal = Decimal(0)
+    # The answer call failed: the row is left out of every metric and counted as an error.
     error: str | None = None
+    # The grader failed after a good answer: its verdicts are `ungraded`; the answer still
+    # counts for not-found, language and spend.
+    grader_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -175,13 +179,13 @@ def _attempt(
             error=str(exc),
         )
     seconds = time.perf_counter() - start
-    sources = {h.chunk_id: f"{h.item_title}\n{h.text}" for h in asked.hits}
+    sources = {h.chunk_id: grader_source(h) for h in asked.hits}
     try:
         grade = grader.grade(q.question, q.reference, asked.answer, sources)
         correctness, citations, calls = grade.correctness, grade.citations, grade.correlation_ids
-        error = None
+        grader_error = None
     except ModelError as exc:
-        correctness, citations, calls, error = "ungraded", (), (), f"grader: {exc}"
+        correctness, citations, calls, grader_error = "ungraded", (), (), str(exc)
     language = answer_language(asked.answer.text())
     return AnswerRow(
         question=q.id,
@@ -199,8 +203,17 @@ def _attempt(
         run_id=asked.run_id,
         question_event=asked.question_event,
         grader_calls=calls,
-        error=error,
+        grader_error=grader_error,
     )
+
+
+def grader_source(hit: Hit) -> str:
+    """A cited chunk as the grader reads it: what the answer model saw, title then text."""
+    return source_text(hit.item_title, hit.text)
+
+
+def source_text(title: str, text: str) -> str:
+    return f"{title}\n{text}"
 
 
 def settled_usd(audit_path: Path, run_ids: Iterable[str]) -> dict[str, Decimal]:
@@ -287,6 +300,7 @@ def summarize(
                 "ungraded_answers": sum(a.correctness == "ungraded" for a in mine_a),
                 "ungraded_citations": sum(c == "ungraded" for a in mine_a for c in a.citations),
                 "language_undetermined": sum(a.language is None for a in mine_a),
+                "grader_errors": sum(a.grader_error is not None for a in mine_a),
             }
         counts["errors"] = sum(
             a.error is not None for a in answers if a.ranking is ranking and a.error

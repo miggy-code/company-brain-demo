@@ -1,5 +1,6 @@
 """Eval aggregation, gates, the answer fingerprint and report hygiene."""
 
+import json
 import subprocess
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,7 @@ from brain.evals.report import (
     answer_fingerprint,
     check_report,
     check_retrieval,
+    newest_answer_report,
     require_clean_tree,
 )
 from brain.search.query import Ranking
@@ -39,6 +41,7 @@ BUSINESS = Business.model_validate(
         },
     }
 )
+GOLDEN = Path(__file__).parents[1] / "businesses" / "casa-prado" / "evals" / "golden.yaml"
 THRESHOLDS = Thresholds(
     source="reports/first.json",
     retrieval=RetrievalThresholds(recall_at_8=0.8, mrr=0.6),
@@ -63,11 +66,11 @@ def live_report(fingerprint: str, **means: float) -> dict[str, Any]:
 
 
 def test_the_fingerprint_changes_with_the_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
-    before = answer_fingerprint(BUSINESS)
+    before = answer_fingerprint(BUSINESS, GOLDEN)
 
     monkeypatch.setattr(compose, "SYSTEM_PROMPT", compose.SYSTEM_PROMPT + " Be brief.")
 
-    assert answer_fingerprint(BUSINESS) != before
+    assert answer_fingerprint(BUSINESS, GOLDEN) != before
 
 
 def test_the_fingerprint_changes_with_the_model_config() -> None:
@@ -75,25 +78,27 @@ def test_the_fingerprint_changes_with_the_model_config() -> None:
         update={"model": BUSINESS.model.model_copy(update={"temperature": 0.7})}
     )
 
-    assert answer_fingerprint(warmer) != answer_fingerprint(BUSINESS)
-    assert answer_fingerprint(BUSINESS) == answer_fingerprint(BUSINESS)
+    assert answer_fingerprint(warmer, GOLDEN) != answer_fingerprint(BUSINESS, GOLDEN)
+    assert answer_fingerprint(BUSINESS, GOLDEN) == answer_fingerprint(BUSINESS, GOLDEN)
 
 
 def test_a_current_live_report_above_thresholds_passes() -> None:
-    fingerprint = answer_fingerprint(BUSINESS)
+    fingerprint = answer_fingerprint(BUSINESS, GOLDEN)
 
     assert check_report(live_report(fingerprint), THRESHOLDS, fingerprint) == []
 
 
 def test_a_stale_fingerprint_fails_the_report_check() -> None:
-    problems = check_report(live_report("sha256:old"), THRESHOLDS, answer_fingerprint(BUSINESS))
+    problems = check_report(
+        live_report("sha256:old"), THRESHOLDS, answer_fingerprint(BUSINESS, GOLDEN)
+    )
 
     assert len(problems) == 1
     assert "fingerprint changed" in problems[0]
 
 
 def test_a_metric_below_its_threshold_fails_the_report_check() -> None:
-    fingerprint = answer_fingerprint(BUSINESS)
+    fingerprint = answer_fingerprint(BUSINESS, GOLDEN)
 
     problems = check_report(live_report(fingerprint, correctness=0.55), THRESHOLDS, fingerprint)
 
@@ -101,7 +106,7 @@ def test_a_metric_below_its_threshold_fails_the_report_check() -> None:
 
 
 def test_a_mock_report_does_not_satisfy_the_check() -> None:
-    fingerprint = answer_fingerprint(BUSINESS)
+    fingerprint = answer_fingerprint(BUSINESS, GOLDEN)
     report = live_report(fingerprint)
     report["meta"]["model_mode"] = "mock"
 
@@ -201,3 +206,24 @@ def test_answer_metrics_score_each_question_once_over_its_repeats() -> None:
     assert (citation.mean, citation.n) == (pytest.approx(5 / 6), 2)
     assert summary.counts["ungraded_answers"] == 1
     assert summary.counts["ungraded_citations"] == 1
+
+
+def test_the_fingerprint_changes_with_the_golden_set(tmp_path: Path) -> None:
+    golden = tmp_path / "golden.yaml"
+    golden.write_text("questions: []\n")
+    before = answer_fingerprint(BUSINESS, golden)
+
+    golden.write_text("questions: [x]\n")
+
+    assert answer_fingerprint(BUSINESS, golden) != before
+
+
+def test_the_report_check_reads_the_newest_live_report(tmp_path: Path) -> None:
+    def write(name: str, mode: str, day: str) -> None:
+        meta = {"label": name, "model_mode": mode, "answers": 3, "date": day, "written": day}
+        (tmp_path / f"{day}-{name}.json").write_text(json.dumps({"meta": meta}))
+
+    write("first", "live", "2026-11-20")
+    write("smoke", "mock", "2026-11-21")
+
+    assert newest_answer_report(tmp_path)["meta"]["label"] == "first"
