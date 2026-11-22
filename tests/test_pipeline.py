@@ -48,7 +48,9 @@ def test_answer_cites_chunks_and_is_traced_on_the_audit_chain(opened: OpenBusine
         asked = brain.ask(lucia, SEPARATION_502)
 
     assert not asked.answer.not_found
-    assert {c.split("#")[0] for c in asked.answer.cited} == {"cp-gmail-ventas-separation-502"}
+    # The mock cites every source holding all the question's content words: the 502 thread,
+    # and with the grown corpus the 604 one too.
+    assert "cp-gmail-ventas-separation-502" in {c.split("#")[0] for c in asked.answer.cited}
     events = brain_events(opened.world_paths.audit, asked.run_id)
     kinds = [e["event_type"] for e in events]
     assert kinds == ["brain.question", "brain.retrieval"] + ["brain.decision"] * len(asked.hits) + [
