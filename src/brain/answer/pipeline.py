@@ -14,7 +14,7 @@
 5. Earlier turns of the thread, filtered so a turn is carried only if every chunk it cited
    is within the audience's ceiling and every audience member heard it (G8).
 6. The model, through the proxy, over the kept chunks and carried turns only; citations
-   enforced (G5).
+   enforced (G5). A note names the versions of a cited document among the kept chunks.
 7. `brain.answer` recorded. Only then is the answer returned (G9).
 """
 
@@ -25,7 +25,14 @@ import psycopg
 from agentgate.models import User
 from agentgate.policy.schema import Effect
 
-from brain.answer.compose import Answer, Prompt, build_prompt, compose, parse_reply
+from brain.answer.compose import (
+    Answer,
+    Prompt,
+    build_prompt,
+    compose,
+    parse_reply,
+    with_disagreements,
+)
 from brain.answer.models import AnswerModel
 from brain.answer.threads import Thread, Turn, carried_turns
 from brain.gate.audit import AuditTrail
@@ -129,7 +136,7 @@ class Brain:
         )
         reached = bool(result.hits)
         raw = self._model.generate(prompt, question_event) if reached else None
-        answer = compose(parse_reply(raw), prompt, question)
+        answer = with_disagreements(compose(parse_reply(raw), prompt, question), result.hits)
         self._audit.answer(answer.cited, answer.not_found, answer.language)
         if thread is not None:
             thread.turns.append(Turn(question, answer.text(), answer.cited, audience_ids))

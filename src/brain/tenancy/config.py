@@ -85,6 +85,14 @@ class BusinessPaths:
         return self.config / "items"
 
     @property
+    def not_versions_file(self) -> Path:
+        return self.config / "not_versions.yaml"
+
+    @property
+    def sim_dir(self) -> Path:
+        return self.config / "sim"
+
+    @property
     def policy_dir(self) -> Path:
         return self.config / "policy"
 

@@ -94,6 +94,7 @@
   tags: [policy]
   acl: [domain:casaprado.example]
   canary: AGCANARY-67099FDC0615
+  series: commission-policy
   body: |
     1. Ventas de reventa. El asesor recibe el 30% de la comisión cobrada al cliente.
     2. Proyectos en preventa. El asesor recibe el 25% de la comisión cobrada al
@@ -287,6 +288,7 @@
   tags: [inventory, rentals]
   acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
   canary: AGCANARY-7915922CB90A
+  series: rental-portfolio
   columns: [Inmueble, Dormitorios, Renta PEN, Estado, Disponible desde]
   rows:
     - [Edificio Los Cedros 104, "1", "2,100", Disponible, inmediato]
@@ -725,6 +727,7 @@
   tags: [policy]
   acl: [domain:casaprado.example]
   canary: AGCANARY-7D9D455E1B05
+  series: commission-policy
   body: |
     Vigente hasta el 31 de diciembre de 2025; reemplazada por la política 2026.
     1. Ventas de reventa. El asesor recibe el 25% de la comisión cobrada al cliente.
@@ -774,6 +777,7 @@
   tags: [rentals, inventory]
   acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
   canary: AGCANARY-E30598DBB209
+  series: rental-portfolio
   columns: [Inmueble, Dormitorios, Renta PEN, Estado, Disponible desde]
   rows:
     - [Edificio Los Cedros 104, "1", "1,950", Alquilado, 2026-10-01]

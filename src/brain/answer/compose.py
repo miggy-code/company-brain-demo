@@ -5,11 +5,16 @@ The model sees the kept chunks under numeric ids and replies with
 cites nothing, or cites an id it was not given, is dropped. If no cited sentence remains, the
 reply is the fixed not-found message in the asker's language, worded the same whether
 nothing matched or everything was filtered.
+
+When the answer cites a version of a document and the kept chunks hold another version of
+it (same series), a fixed note in the asker's language says which is newer. It is built in
+code from the kept chunks only, so it can name only items the audience may see.
 """
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -35,6 +40,7 @@ in the other language.
 sentences you cannot cite.
 - If the sources do not answer the question, set not_found to true and return no sentences.
 - Be brief: at most five sentences. Include exact figures, dates and names from the sources.
+- Sources carry dates. When two sources disagree, use the most recent one and give its date.
 
 Reply with JSON only, in exactly this shape:
 {{"language": "es" or "en", "sentences": [{{"text": "...", "citations": [1, 2]}}], \
@@ -136,19 +142,57 @@ class Sentence:
 
 
 @dataclass(frozen=True)
+class Version:
+    item_id: str
+    title: str
+    updated: date
+
+
+@dataclass(frozen=True)
+class Disagreement:
+    """Versions of one document among the kept chunks, newest first."""
+
+    series: str
+    versions: tuple[Version, ...]
+
+    def note(self, language: Language) -> str:
+        newest, *older = self.versions
+        if language == "es":
+            others = " y ".join(f"“{v.title}” ({v.updated.isoformat()})" for v in older)
+            return (
+                f"Las fuentes no coinciden: “{newest.title}” ({newest.updated.isoformat()})"
+                f" es más reciente que {others}."
+            )
+        others = " and ".join(f'"{v.title}" ({v.updated.isoformat()})' for v in older)
+        return (
+            f'Sources disagree: "{newest.title}" ({newest.updated.isoformat()}) is newer'
+            f" than {others}."
+        )
+
+
+@dataclass(frozen=True)
 class Answer:
     language: Language
     sentences: tuple[Sentence, ...]
     not_found: bool
+    disagreements: tuple[Disagreement, ...] = ()
 
     @property
     def cited(self) -> tuple[str, ...]:
         return tuple(dict.fromkeys(c for s in self.sentences for c in s.chunk_ids))
 
+    @property
+    def named_items(self) -> tuple[str, ...]:
+        """Every item the answer shows the reader: cited, or named in a disagreement note."""
+        cited = (c.split("#", 1)[0] for c in self.cited)
+        noted = (v.item_id for d in self.disagreements for v in d.versions)
+        return tuple(dict.fromkeys([*cited, *noted]))
+
     def text(self) -> str:
         if self.not_found:
             return NOT_FOUND[self.language]
-        return " ".join(s.text for s in self.sentences)
+        notes = [d.note(self.language) for d in self.disagreements]
+        return " ".join([*(s.text for s in self.sentences), *notes])
 
 
 def compose(reply: ModelReply | None, prompt: Prompt, question: str) -> Answer:
@@ -165,6 +209,30 @@ def compose(reply: ModelReply | None, prompt: Prompt, question: str) -> Answer:
     if not kept:
         return Answer(language=language, sentences=(), not_found=True)
     return Answer(language=language, sentences=tuple(kept), not_found=False)
+
+
+def with_disagreements(answer: Answer, hits: Sequence[Hit]) -> Answer:
+    """The answer with a note for each series it cites that has two or more versions among
+    `hits` (the kept chunks, all within the audience's ceiling). Never looks further."""
+    if answer.not_found:
+        return answer
+    cited = set(answer.cited)
+    by_series: dict[str, dict[str, Version]] = {}
+    cited_series: set[str] = set()
+    for hit in hits:
+        if hit.series is None:
+            continue
+        by_series.setdefault(hit.series, {})[hit.item_id] = Version(
+            hit.item_id, hit.item_title, hit.updated
+        )
+        if hit.chunk_id in cited:
+            cited_series.add(hit.series)
+    notes = []
+    for series in sorted(cited_series):
+        versions = sorted(by_series[series].values(), key=lambda v: (v.updated, v.item_id))
+        if len(versions) > 1:
+            notes.append(Disagreement(series, tuple(reversed(versions))))
+    return replace(answer, disagreements=tuple(notes))
 
 
 _ES = frozenset(

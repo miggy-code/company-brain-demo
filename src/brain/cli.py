@@ -48,7 +48,8 @@ from brain.gate.policy import GateError, InvariantError, open_business_world, pr
 from brain.identity.people import load_directory, load_people
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
 from brain.ingest.index import index_models, rebuild_index, require_week_zero
-from brain.ingest.items import load_items
+from brain.ingest.items import Item, load_items
+from brain.ingest.versions import load_not_versions, version_problems
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
 from brain.redteam.report import write_baseline as write_baseline_file
@@ -138,6 +139,7 @@ def index(
     try:
         items = load_items(paths.items_dir)
         people = load_people(paths.people_file)
+        check_versions(items, paths)
     except ConfigError as exc:
         _fail(str(exc))
     embedder: Embedder = BgeM3Embedder() if models is Models.BGE else HashEmbedder()
@@ -148,6 +150,14 @@ def index(
         f"{business_id}: {summary.items} items, {summary.chunks} chunks,"
         f" {summary.postings} postings ({summary.embedder}, {summary.reranker})"
     )
+
+
+def check_versions(items: Sequence[Item], paths: BusinessPaths) -> None:
+    """Refuse items with a likely version pair that nothing links (ingest.versions)."""
+    not_versions = load_not_versions(paths.not_versions_file, {i.id for i in items})
+    problems = version_problems(items, not_versions)
+    if problems:
+        raise ConfigError("unlinked versions:\n  " + "\n  ".join(problems))
 
 
 @app.command("ask")
@@ -191,6 +201,7 @@ def _render(answer: Answer, hits: Sequence[Hit]) -> str:
             numbers.setdefault(chunk_id, len(numbers) + 1)
             marks.append(f"[{numbers[chunk_id]}]")
         lines.append(f"{sentence.text} {''.join(marks)}")
+    lines.extend(d.note(answer.language) for d in answer.disagreements)
     lines.append("")
     for chunk_id, n in numbers.items():
         hit = by_chunk[chunk_id]

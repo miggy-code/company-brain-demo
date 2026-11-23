@@ -264,6 +264,7 @@ def _prompt(question: str = "¿Qué es el plan Cóndor?") -> Prompt:
         acl=(),
         location="message 1",
         text="Plan Halcón: 4% de descuento por compra en bloque.",
+        series=None,
         keyword_rank=1,
         vector_rank=1,
         fused=0.0,
