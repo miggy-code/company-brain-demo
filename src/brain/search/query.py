@@ -44,7 +44,7 @@ class Ranking(StrEnum):
 
 
 # The ranking every question uses, and so the one the eval gates measure.
-PRODUCTION = Ranking.HYBRID_RERANK
+PRODUCTION = Ranking.HYBRID
 
 
 @dataclass(frozen=True)
