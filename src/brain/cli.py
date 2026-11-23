@@ -5,7 +5,9 @@ operator's provider keys file (JSON, provider name to key, mode 0600), which onl
 agentgate proxy process reads.
 """
 
+import sys
 import tempfile
+from collections import Counter
 from collections.abc import Sequence
 from contextlib import ExitStack
 from decimal import Decimal
@@ -14,11 +16,34 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+import yaml
 
 from brain.answer.compose import Answer
 from brain.answer.models import ModelError
-from brain.evals.golden import format_golden, load_golden, run_golden
-from brain.evals.permissions import format_report, load_suite, run_suite
+from brain.evals.ablation import answer_rows, retrieval_rows, summarize
+from brain.evals.agreement import (
+    chunk_sources,
+    format_agreement,
+    labelling_sheet,
+    load_labels,
+    read_report,
+    score,
+)
+from brain.evals.golden import GoldenSet, load_golden
+from brain.evals.permissions import expected_visibility, format_report, load_suite, run_suite
+from brain.evals.report import (
+    answer_fingerprint,
+    build_report,
+    check_report,
+    check_retrieval,
+    format_summary,
+    load_thresholds,
+    newest_answer_report,
+    readme_block,
+    require_clean_tree,
+    write_report,
+)
+from brain.evals.report import write_readme as write_evals_readme
 from brain.gate.policy import GateError, InvariantError, open_business_world, prepare_world
 from brain.identity.people import load_directory
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
@@ -30,9 +55,9 @@ from brain.redteam.report import write_baseline as write_baseline_file
 from brain.redteam.runner import Runner
 from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business, open_run
-from brain.search.query import Hit
+from brain.search.query import Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
-from brain.tenancy.config import ConfigError, business_paths, load_business
+from brain.tenancy.config import BusinessPaths, ConfigError, business_paths, load_business
 from brain.tenancy.database import connect, create_database
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
@@ -67,6 +92,9 @@ class Models(StrEnum):
 class Suite(StrEnum):
     PERMISSIONS = "permissions"
     GOLDEN = "golden"
+    ABLATION = "ablation"
+    RETRIEVAL = "retrieval"
+    AGREEMENT = "agreement"
 
 
 def _fail(message: str) -> None:
@@ -177,33 +205,195 @@ def evaluate(
     suite: Annotated[Suite, typer.Option("--suite")] = Suite.PERMISSIONS,
     model: Annotated[
         ModelMode | None,
-        typer.Option("--model", help="Default: mock for permissions, live for golden."),
+        typer.Option("--model", help="Default: mock for permissions, live for golden/ablation."),
     ] = None,
     keys_file: KeysFile = None,
+    repeats: Annotated[
+        int | None, typer.Option("--repeats", min=1, help="Default: 1 golden, 3 ablation.")
+    ] = None,
+    report: Annotated[
+        str | None,
+        typer.Option("--report", help="Write reports/<date>-<label>.{json,md} (clean tree)."),
+    ] = None,
+    gate: Annotated[
+        bool, typer.Option("--gate", help="retrieval: fail below the thresholds.")
+    ] = False,
+    readme: Annotated[
+        bool, typer.Option("--readme", help="With --report: write the README evals table.")
+    ] = False,
+    stats: Annotated[bool, typer.Option("--stats", help="golden: print the set's shape.")] = False,
+    sample: Annotated[
+        bool, typer.Option("--sample", help="agreement: print the blind labelling sheet.")
+    ] = False,
+    check: Annotated[
+        bool,
+        typer.Option(
+            "--check-report",
+            help="Fail unless the newest live report matches the answer fingerprint and"
+            " meets the answer thresholds (no model call).",
+        ),
+    ] = False,
     businesses_dir: BusinessesDir = Path("businesses"),
+    reports_dir: Annotated[Path, typer.Option("--reports-dir")] = Path("reports"),
 ) -> None:
-    """Run an eval suite. Runs in a fresh temporary agentgate world and audit log."""
-    mode = model or (ModelMode.MOCK if suite is Suite.PERMISSIONS else ModelMode.LIVE)
+    """Run an eval suite. Runs in a fresh temporary agentgate world and audit log.
+
+    permissions: the person x canary suite. golden: the golden set with production ranking.
+    ablation: the golden set over keyword, vector, hybrid and hybrid_rerank. retrieval:
+    search only, no model (the CI gate). agreement: grader vs hand labels.
+    """
     paths = business_paths(business_id, businesses_dir, Path("data"))
     try:
+        if check:
+            _check_report(paths, reports_dir)
+            return
+        if readme and not report:
+            raise ConfigError("--readme needs --report: the README table names its report")
+        commit = require_clean_tree() if report else None
         items = load_items(paths.items_dir)
+        business = load_business(paths)
+        directory = load_directory(business, paths.people_file)
+        people = {p.id for p in directory}
+        oracle = load_suite(paths.evals_dir / "permissions.yaml", items, people)
+        golden = load_golden(
+            paths.evals_dir / "golden.yaml",
+            {i.id for i in items},
+            expected_visibility(oracle, items, people),
+        )
+        if stats:
+            typer.echo(golden_stats(golden))
+            return
+        if suite is Suite.AGREEMENT:
+            _agreement(business_id, businesses_dir, paths, golden, sample=sample)
+            return
+        live_default = suite in (Suite.GOLDEN, Suite.ABLATION)
+        mode = model or (ModelMode.LIVE if live_default else ModelMode.MOCK)
         with (
             tempfile.TemporaryDirectory(prefix="brain-eval-") as scratch,
             open_business(business_id, businesses_dir, Path(scratch)) as opened,
         ):
-            people = {p.id for p in opened.directory}
-            typer.echo(f"{suite.value} suite, model {mode.value}, {len(people)} people")
             if suite is Suite.PERMISSIONS:
-                loaded = load_suite(paths.evals_dir / "permissions.yaml", items, people)
-                result = run_suite(opened, items, loaded, mode, keys_file=keys_file)
+                typer.echo(f"permissions suite, model {mode.value}, {len(people)} people")
+                result = run_suite(opened, items, oracle, mode, keys_file=keys_file)
                 typer.echo(format_report(result))
                 if not result.passed:
                     raise typer.Exit(code=1)
-            else:
-                golden = load_golden(paths.evals_dir / "golden.yaml", {i.id for i in items}, people)
-                typer.echo(format_golden(run_golden(opened, golden, mode, keys_file)))
+                return
+            rankings = [Ranking.HYBRID_RERANK] if suite is Suite.GOLDEN else list(Ranking)
+            n = len(golden.questions)
+            typer.echo(f"{suite.value}: {n} questions, rankings {', '.join(rankings)}")
+            retrieval = retrieval_rows(opened, golden, rankings)
+            answers = []
+            reps = 0
+            if suite is not Suite.RETRIEVAL:
+                reps = repeats or (1 if suite is Suite.GOLDEN else 3)
+                typer.echo(f"model {mode.value}, {reps} repeat(s)")
+                answers = answer_rows(
+                    opened, golden, rankings, reps, mode, keys_file, progress=typer.echo
+                )
+            summaries = summarize(golden, retrieval, answers, rankings)
+            typer.echo(format_summary(summaries))
+            if report is not None and commit is not None:
+                embedder, reranker = index_models(opened.conn)
+                built = build_report(
+                    label=report,
+                    commit=commit,
+                    command=_command_line(),
+                    business=opened.business,
+                    golden_file=paths.evals_dir / "golden.yaml",
+                    model_mode=mode.value if answers else "none",
+                    repeats=reps,
+                    question_count=n,
+                    summaries=summaries,
+                    retrieval=retrieval,
+                    answers=answers,
+                    embedder=embedder,
+                    reranker=reranker,
+                )
+                json_path, md_path = write_report(reports_dir, built)
+                typer.echo(f"wrote {json_path} and {md_path}")
+                if readme:
+                    write_evals_readme(Path("README.md"), readme_block(built, json_path))
+                    typer.echo("wrote the README evals table")
+            if gate:
+                problems = check_retrieval(summaries, load_thresholds(paths.thresholds_file))
+                for problem in problems:
+                    typer.echo(f"GATE: {problem}")
+                typer.echo("retrieval gate: " + ("FAIL" if problems else "PASS"))
+                if problems:
+                    raise typer.Exit(code=1)
     except (ConfigError, GateError, InvariantError, ModelError, LookupError) as exc:
         _fail(str(exc))
+
+
+def _check_report(paths: BusinessPaths, reports_dir: Path) -> None:
+    business = load_business(paths)
+    newest = newest_answer_report(reports_dir)
+    problems = check_report(
+        newest,
+        load_thresholds(paths.thresholds_file),
+        answer_fingerprint(business, paths.evals_dir / "golden.yaml"),
+    )
+    meta = newest["meta"]
+    typer.echo(f"newest live report: {meta['label']} ({meta['date']}, commit {meta['commit']})")
+    for problem in problems:
+        typer.echo(f"REPORT: {problem}")
+    typer.echo("report check: " + ("FAIL" if problems else "PASS"))
+    if problems:
+        raise typer.Exit(code=1)
+
+
+def _agreement(
+    business_id: str, businesses_dir: Path, paths: BusinessPaths, golden: GoldenSet, *, sample: bool
+) -> None:
+    labels_path = paths.evals_dir / "agreement.yaml"
+    if sample:
+        source = typer.prompt("report to sample (reports/<file>.json)")
+        loaded = read_report(Path(source))
+        with (
+            tempfile.TemporaryDirectory(prefix="brain-eval-") as scratch,
+            open_business(business_id, businesses_dir, Path(scratch)) as opened,
+        ):
+            sources = chunk_sources(opened.conn)
+        sheet = labelling_sheet(loaded, golden, sources)
+        typer.echo(yaml.safe_dump(sheet, allow_unicode=True, sort_keys=False, width=100))
+        return
+    labels = load_labels(labels_path)
+    typer.echo(format_agreement(score(labels, read_report(Path(labels.source)))))
+
+
+def _command_line() -> str:
+    """The command as typed, with the keys file path left out of the record."""
+    args, hidden = [], False
+    for arg in sys.argv[1:]:
+        if hidden:
+            args.append("<keys-file>")
+            hidden = False
+        elif arg == "--keys-file":
+            args.append(arg)
+            hidden = True
+        elif arg.startswith("--keys-file="):
+            args.append("--keys-file=<keys-file>")
+        else:
+            args.append(arg)
+    return " ".join(["brain", *args])
+
+
+def golden_stats(golden: GoldenSet) -> str:
+    qs = golden.questions
+    lines = Counter(q.line for q in qs)
+    languages = Counter(q.language for q in qs)
+    return "\n".join(
+        [
+            f"questions: {len(qs)}",
+            "per line: " + ", ".join(f"{k} {v}" for k, v in sorted(lines.items())),
+            "languages: " + ", ".join(f"{k} {v}" for k, v in sorted(languages.items())),
+            f"cross-language: {sum(q.cross_language for q in qs)}",
+            f"no answer: {sum(q.no_answer for q in qs)}",
+            f"two or more sources: {sum(q.two_source for q in qs)}",
+            "every asker may see every expected item: yes (checked against the oracle)",
+        ]
+    )
 
 
 @app.command("redteam")

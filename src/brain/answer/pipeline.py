@@ -50,6 +50,18 @@ class Asked:
     prompt: Prompt | None = None
 
 
+def audience_policy_filter(
+    conn: psycopg.Connection, policy: BusinessPolicy, audience: Sequence[Person]
+) -> PolicyFilter:
+    """What every member's role may read: the intersection of their allowed facts."""
+    facts = distinct_facts(conn)
+    allowed: frozenset[str] | None = None
+    for person in audience:
+        mine = policy.search_filter(policy.active_user(person.id), facts)
+        allowed = mine if allowed is None else allowed & mine
+    return PolicyFilter(allowed_facts=allowed or frozenset(), policy_version=policy.version)
+
+
 class Brain:
     """Answers questions for one business within one run (one model session)."""
 
@@ -73,14 +85,7 @@ class Brain:
 
     def policy_filter(self, *audience: Person) -> PolicyFilter:
         """What every member's role may read: the intersection of their allowed facts."""
-        facts = distinct_facts(self._conn)
-        allowed: frozenset[str] | None = None
-        for person in audience:
-            mine = self._policy.search_filter(self._policy.active_user(person.id), facts)
-            allowed = mine if allowed is None else allowed & mine
-        return PolicyFilter(
-            allowed_facts=allowed or frozenset(), policy_version=self._policy.version
-        )
+        return audience_policy_filter(self._conn, self._policy, audience)
 
     def ask(
         self,

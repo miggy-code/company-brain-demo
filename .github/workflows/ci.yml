@@ -68,3 +68,8 @@ jobs:
           uv run brain redteam casa-prado --model echo
           uv run brain redteam casa-prado --model obey
           uv run brain redteam casa-prado --model mock
+      # Answer metrics need a live model, which CI never calls. Instead the newest live
+      # report in reports/ must carry the current answer fingerprint (prompts, grader, model
+      # config) and meet the answer thresholds, so a prompt or model change lands with a run.
+      - name: Answer report check
+        run: uv run brain eval casa-prado --check-report

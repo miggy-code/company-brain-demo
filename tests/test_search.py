@@ -1,6 +1,7 @@
 """Search against a real Postgres: the permission predicate and the BM25F port."""
 
 import random
+from collections.abc import Sequence
 from datetime import date
 
 import psycopg
@@ -12,7 +13,7 @@ from tests.conftest import index
 from brain.ingest.embedding import HashEmbedder
 from brain.ingest.items import Item
 from brain.search.filters import PolicyFilter, facts_key, permission_clause
-from brain.search.query import Searcher
+from brain.search.query import Ranking, Searcher
 from brain.search.rerank import IdentityReranker
 from brain.search.tokens import tokenize
 
@@ -171,3 +172,83 @@ def test_vector_and_hit_queries_carry_the_predicate(scratch_db: psycopg.Connecti
         )
     ).fetchone()
     assert count == (1,)
+
+
+class ReversingReranker:
+    """Scores candidates in reverse of the order it is given, so a reranked list differs."""
+
+    def scores(self, query: str, texts: Sequence[str]) -> list[float]:
+        return [float(n) for n in range(len(texts))]
+
+
+@pytest.mark.parametrize("ranking", list(Ranking))
+def test_every_ranking_keeps_the_permission_predicate(
+    scratch_db: psycopg.Connection, ranking: Ranking
+) -> None:
+    index(
+        scratch_db,
+        [
+            doc("ok", "jardín y cochera", ["anyone"]),
+            doc("no", "plan halcon plan halcon", ["user:luis@x.example"]),
+        ],
+    )
+
+    result = searcher(scratch_db).search([ANA], allow("internal"), "plan halcon", ranking=ranking)
+
+    assert "no" not in {h.item_id for h in result.hits}
+
+
+def test_keyword_ranking_keeps_only_chunks_with_a_query_term(
+    scratch_db: psycopg.Connection,
+) -> None:
+    index(
+        scratch_db,
+        [doc("match", "renta del departamento", ["anyone"]), doc("other", "jardín", ["anyone"])],
+    )
+    found = searcher(scratch_db)
+
+    keyword = found.search([ANA], allow("internal"), "renta", ranking=Ranking.KEYWORD)
+    vector = found.search([ANA], allow("internal"), "renta", ranking=Ranking.VECTOR)
+
+    assert [h.item_id for h in keyword.hits] == ["match"]
+    assert {h.item_id for h in vector.hits} == {"match", "other"}
+
+
+def test_only_hybrid_rerank_applies_the_reranker(scratch_db: psycopg.Connection) -> None:
+    index(
+        scratch_db,
+        [
+            doc("best", "renta renta mensual", ["anyone"]),
+            doc("second", "renta", ["anyone"]),
+            doc("third", "mensual", ["anyone"]),
+        ],
+    )
+    found = Searcher(scratch_db, HashEmbedder(), ReversingReranker())
+
+    hybrid = found.search([ANA], allow("internal"), "renta mensual", ranking=Ranking.HYBRID)
+    reranked = found.search([ANA], allow("internal"), "renta mensual")
+
+    order = [h.item_id for h in hybrid.hits]
+    assert order[0] == "best"
+    assert [h.item_id for h in reranked.hits] == order[::-1]
+
+
+class RecordingReranker:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def scores(self, query: str, texts: Sequence[str]) -> list[float]:
+        self.texts.extend(texts)
+        return [0.0] * len(texts)
+
+
+def test_the_reranker_sees_each_chunk_with_its_item_title(scratch_db: psycopg.Connection) -> None:
+    # A sheet row alone ("Departamento: 304; Deuda PEN: 900") says nothing about what it is
+    # part of; the embedder already gets the title, so the reranker must too.
+    sheet = doc("fees", "Departamento: 304; Deuda PEN: 900", ["anyone"], title="Cuotas octubre")
+    index(scratch_db, [sheet])
+    reranker = RecordingReranker()
+
+    Searcher(scratch_db, HashEmbedder(), reranker).search([ANA], allow("internal"), "cuotas")
+
+    assert reranker.texts == ["Cuotas octubre\nDepartamento: 304; Deuda PEN: 900"]

@@ -151,9 +151,11 @@ def make_brain(
     *,
     audit_db: Any = None,
     policy: BusinessPolicy | None = None,
+    searcher: Searcher | None = None,
 ) -> Brain:
     """The brain for one run. `audit_db` and `policy` replace the real ones only to inject
-    faults (the leak suite's fail-closed scenarios)."""
+    faults (the leak suite's fail-closed scenarios); `searcher` only to rank differently
+    (the retrieval evals' ablations)."""
     sink = opened.world.sink
     if not isinstance(sink, PanoptesSink):
         raise GateError("the business world has no Panoptes audit log")
@@ -161,7 +163,7 @@ def make_brain(
         business=opened.business,
         directory=opened.directory,
         conn=opened.conn,
-        searcher=opened.searcher,
+        searcher=opened.searcher if searcher is None else searcher,
         policy=opened.policy if policy is None else policy,
         model=answer_model(session),
         audit=AuditTrail(

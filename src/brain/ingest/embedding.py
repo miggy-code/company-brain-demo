@@ -49,8 +49,11 @@ class HashEmbedder:
 class BgeM3Embedder:
     """BAAI/bge-m3 dense vectors (1024-d, normalised for cosine)."""
 
-    name = "bge-m3"
     model_id = "BAAI/bge-m3"
+    # Pinned Hugging Face commit; the index records it in its name, so an index built with
+    # other weights refuses to load instead of being searched with mismatched vectors.
+    revision = "5617a9f61b028005a4858fdac845db406aefb181"
+    name = f"bge-m3@{revision[:12]}"
 
     def __init__(self) -> None:
         self._model: Any = None
@@ -60,7 +63,7 @@ class BgeM3Embedder:
             # Imported here: torch takes seconds to import and CI never needs it.
             from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.model_id)
+            self._model = SentenceTransformer(self.model_id, revision=self.revision)
         return self._model
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:

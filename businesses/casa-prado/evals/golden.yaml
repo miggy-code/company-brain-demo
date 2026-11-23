@@ -1,112 +1,700 @@
-# Golden set for Casa Prado: 16 questions, four per business line, half Spanish and half
-# English, four of them cross-language (an English question about Spanish-only items).
-# Each is asked by someone who may see every expected item.
+# Golden set for Casa Prado (03): 80 questions, 20 per business line, 40 Spanish and 40
+# English. Cross-language means the question's language differs from every expected item's.
+# A question with no expected items has no answer anywhere in the corpus (a plausible topic
+# no item covers, not a restricted one: those belong to the leak suite) and must get the
+# not-found reply. Each asker may see every expected item (checked against the permission
+# oracle when the set loads). `reference` lists the facts a correct answer states; the
+# grader checks answers against them.
 
 questions:
+
   # Property management
   - id: g01
     line: property-management
     language: es
     asker: cp-carla
-    question: ¿Cuál es el estado de la orden de trabajo de la bomba de agua en Torre Alameda?
+    question: "¿Cuál es el estado de la orden de trabajo de la bomba de agua en Torre Alameda?"
     expected_items: [cp-drive-ot-alameda-0412]
+    reference:
+      - "El sello mecánico de la bomba 1 pierde agua; el repuesto está pedido"
+      - "Cambio programado el 24 de noviembre de 2026 de 8:00 a 12:00"
+      - "Mientras tanto opera la bomba número 2"
   - id: g02
     line: property-management
     language: en
     cross_language: true
     asker: cp-carla
-    question: Which owners at Torre Alameda were behind on their maintenance fees in October 2026?
+    question: "Which owners at Torre Alameda were behind on their maintenance fees in October 2026?"
     expected_items: [cp-drive-fees-alameda-2026-10]
+    reference:
+      - "Elena Gamarra (304) owed 2 months, PEN 900"
+      - "Familia Arana (1102) owed 1 month, PEN 450"
   - id: g03
     line: property-management
     language: es
     asker: cp-rosa
-    question: ¿Qué acordó la junta de propietarios de Torre Alameda sobre el ascensor y cómo se pagará?
+    question: "¿Qué acordó la junta de propietarios de Torre Alameda sobre el ascensor y cómo se pagará?"
     expected_items: [cp-drive-junta-alameda-acta]
+    reference:
+      - "Modernizar el ascensor 2 con Elevadores Pacífico por PEN 86,000"
+      - "Cuota extraordinaria de PEN 600 por departamento en tres cuotas mensuales desde diciembre de 2026"
   - id: g04
     line: property-management
     language: en
     asker: cp-carla
-    question: What caused the leak at Los Cedros 501 and when is the repair?
+    question: "What caused the leak at Los Cedros 501 and when is the repair?"
     expected_items: [cp-gmail-cedros-501-leak]
+    reference:
+      - "A cracked drain pipe under the shower of apartment 601"
+      - "Repair scheduled for November 19"
+  - id: g05
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-jorge
+    question: "When is the seal replacement on the Torre Alameda water pump scheduled, and how long will it take?"
+    expected_items: [cp-drive-ot-alameda-0412, cp-gmail-ot-0412-schedule]
+    reference:
+      - "Monday November 24, 2026 at 8:00"
+      - "About four hours (8:00 to 12:00), with a water cut"
+  - id: g06
+    line: property-management
+    language: es
+    asker: cp-carla
+    question: "¿Cuánta deuda de cuotas de mantenimiento tiene Los Cedros 302 en octubre de 2026?"
+    expected_items: [cp-drive-fees-cedros-2026-10]
+    reference:
+      - "Patricia Lazo debe 3 meses"
+      - "Deuda de PEN 960"
+  - id: g07
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-carla
+    question: "What did the Los Cedros basement work order fix, and is it finished?"
+    expected_items: [cp-drive-ot-cedros-0398]
+    reference:
+      - "A leak in the basement slab near parking space 12 after garden watering"
+      - "The slab joint was waterproofed by Impermeables Lima"
+      - "Finished on November 3, 2026"
+  - id: g08
+    line: property-management
+    language: es
+    asker: cp-rosa
+    question: "¿Cuándo empieza la modernización del ascensor 2 de Torre Alameda y qué ascensor queda operativo?"
+    expected_items: [cp-slack-administracion-ascensor]
+    reference:
+      - "Empieza el 5 de enero"
+      - "El ascensor 1 sigue operativo durante la obra"
+  - id: g09
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-carla
+    question: "Which companies quoted the Torre Alameda elevator 2 modernization, and which one was chosen?"
+    expected_items: [cp-drive-presupuesto-ascensor-alameda, cp-drive-junta-alameda-acta]
+    reference:
+      - "Elevadores Pacífico, PEN 86,000 (chosen)"
+      - "Ascensores Lima Norte, PEN 92,500"
+      - "TecnoLift Perú, PEN 79,000"
+  - id: g10
+    line: property-management
+    language: es
+    asker: cp-carla
+    question: "¿Qué trabajo hizo Aguas Limpias en Los Cedros y cuándo?"
+    expected_items: [cp-drive-maintenance-log-cedros]
+    reference:
+      - "Limpieza y desinfección semestral de la cisterna"
+      - "El 3 de octubre de 2026"
+  - id: g11
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-carla
+    question: "When is the Torre Alameda water tank cleaning, and how long will the water be cut?"
+    expected_items: [cp-slack-administracion-cisterna]
+    reference:
+      - "December 6"
+      - "Water cut from 9:00 to 15:00"
+  - id: g12
+    line: property-management
+    language: es
+    asker: cp-jorge
+    question: "¿Qué hay que cambiar en la orden OT-0415 y cuándo se hace?"
+    expected_items: [cp-drive-ot-alameda-0415, cp-gmail-ot-0415-schedule]
+    reference:
+      - "Seis luminarias de la rampa de salida por paneles LED de 18 W"
+      - "El 26 de noviembre a las 9:00"
+  - id: g13
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-rosa
+    question: "What did the Los Cedros owners' meeting decide about the facade, and how will it be paid?"
+    expected_items: [cp-drive-junta-cedros-acta]
+    reference:
+      - "Paint the facade with Pinturas del Pacífico for PEN 38,000"
+      - "Paid from the reserve fund plus a PEN 250 extraordinary fee per apartment in November 2026"
+  - id: g14
+    line: property-management
+    language: es
+    cross_language: true
+    asker: cp-carla
+    question: "¿Cuál fue la causa de la humedad en la pared de Los Cedros 402?"
+    expected_items: [cp-gmail-cedros-402-damp]
+    reference:
+      - "Condensación por el sello de la ventana gastado, no una filtración"
+      - "Cambio del sello el 28 de octubre, a cargo del edificio"
+  - id: g15
+    line: property-management
+    language: en
+    cross_language: true
+    asker: cp-rosa
+    question: "Did Elena Gamarra's fee debt at Torre Alameda grow between September and October 2026?"
+    expected_items: [cp-drive-fees-alameda-2026-09, cp-drive-fees-alameda-2026-10]
+    reference:
+      - "September: 1 month, PEN 450"
+      - "October: 2 months, PEN 900"
+  - id: g16
+    line: property-management
+    language: es
+    asker: cp-carla
+    question: "¿Qué falla tuvo la bomba de agua de Los Cedros y cuánto costó repararla?"
+    expected_items: [cp-drive-ot-cedros-0405]
+    reference:
+      - "El tablero se disparaba por sobrecarga"
+      - "Cambio de contactor y relé térmico"
+      - "Costo PEN 780"
+  - id: g17
+    line: property-management
+    language: es
+    asker: cp-carla
+    question: "¿Cuándo se fumigó por última vez el Edificio Los Cedros?"
+  - id: g18
+    line: property-management
+    language: en
+    asker: cp-rosa
+    question: "How much does Torre Alameda pay each month for its security guard service?"
+  - id: g19
+    line: property-management
+    language: es
+    asker: cp-carla
+    question: "¿Qué empresa hace el mantenimiento de la puerta del garaje de Los Cedros?"
+  - id: g20
+    line: property-management
+    language: en
+    asker: cp-carla
+    question: "What is the premium of the Los Cedros building insurance policy?"
 
   # New project presales (Mirador del Parque)
-  - id: g05
+  - id: g21
     line: presales
     language: es
     asker: cp-lucia
-    question: ¿En qué estado está la separación del departamento 502 en Mirador del Parque?
+    question: "¿En qué estado está la separación del departamento 502 en Mirador del Parque?"
     expected_items: [cp-drive-mirador-separations, cp-gmail-ventas-separation-502]
-  - id: g06
+    reference:
+      - "Separación de USD 3,000 pagada el 10 de noviembre"
+      - "Pendiente la firma de la minuta con Inversiones Altamira"
+      - "Plazo hasta el 25 de noviembre de 2026"
+  - id: g22
     line: presales
     language: es
     asker: cp-diego
-    question: ¿Qué comisión y qué exclusividad tenemos con Inversiones Altamira por Mirador?
+    question: "¿Qué comisión y qué exclusividad tenemos con Inversiones Altamira por Mirador?"
     expected_items: [cp-drive-mirador-agreement]
-  - id: g07
+    reference:
+      - "Comisión del 3% del precio de venta más IGV"
+      - "Exclusividad de 18 meses desde el 1 de septiembre de 2026"
+  - id: g23
     line: presales
     language: en
     asker: cp-diego
-    question: What prices and discount did we offer the foreign investor for Mirador units?
+    question: "What prices and discount did we offer the foreign investor for Mirador units?"
     expected_items: [cp-gmail-mirador-investor-berg]
-  - id: g08
+    reference:
+      - "List prices from USD 145,000 to USD 310,000"
+      - "2% discount for three or more units"
+  - id: g24
     line: presales
     language: en
     cross_language: true
     asker: cp-diego
-    question: What is the list price of unit 803 at Mirador del Parque?
+    question: "What is the current list price of unit 803 at Mirador del Parque?"
     expected_items: [cp-drive-mirador-price-list]
+    reference:
+      - "USD 238,500"
+  - id: g25
+    line: presales
+    language: es
+    asker: cp-lucia
+    question: "¿Cuánto cuesta un estacionamiento simple en el sótano 1 de Mirador del Parque?"
+    expected_items: [cp-drive-mirador-parking-prices]
+    reference:
+      - "E-01, USD 14,000"
+  - id: g26
+    line: presales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "How far along is the construction of Mirador del Parque, and why is it behind?"
+    expected_items: [cp-drive-mirador-obra-avance]
+    reference:
+      - "18% done against 20% scheduled at October 31, 2026"
+      - "Delayed by the road interference permit"
+      - "Delivery still estimated for the second half of 2028"
+  - id: g27
+    line: presales
+    language: es
+    asker: cp-rosa
+    question: "¿Qué comisión aceptó Altamira para las ventas en bloque de Mirador?"
+    expected_items: [cp-gmail-altamira-commission]
+    reference:
+      - "2.5% para bloques de cinco o más unidades"
+      - "Sujeto a una adenda al convenio"
+  - id: g28
+    line: presales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What does the Mirador kitchen come with, and what flooring do the bedrooms have?"
+    expected_items: [cp-slack-mirador-acabados]
+    reference:
+      - "Quartz countertop, oven and hood; no refrigerator"
+      - "8 mm laminate in the bedrooms"
+  - id: g29
+    line: presales
+    language: es
+    asker: cp-lucia
+    question: "¿Qué precio de lanzamiento le dimos a Gonzalo Ríos por el 604 de Mirador?"
+    expected_items: [cp-gmail-ventas-separation-604, cp-hubspot-deal-mirador-604]
+    reference:
+      - "USD 186,200 hasta el 30 de noviembre"
+  - id: g30
+    line: presales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What launch discount applies to Mirador del Parque, and until when?"
+    expected_items: [cp-drive-mirador-launch-plan]
+    reference:
+      - "5% below list price"
+      - "Until November 30, 2026"
+  - id: g31
+    line: presales
+    language: es
+    asker: cp-diego
+    question: "¿Cuántas separaciones lleva Mirador del Parque desde el lanzamiento?"
+    expected_items: [cp-slack-ventas-pipeline]
+    reference:
+      - "9 separaciones (pipeline del 17 de noviembre)"
+  - id: g32
+    line: presales
+    language: en
+    asker: cp-diego
+    question: "Who is Thomas Berg, and when is he visiting Lima?"
+    expected_items: [cp-hubspot-contact-berg, cp-gmail-mirador-investor-berg]
+    reference:
+      - "Partner at Northfield Capital, a property investment fund"
+      - "Visiting Lima in December 2026"
+  - id: g33
+    line: presales
+    language: es
+    asker: cp-rosa
+    question: "¿Qué es el plan Halcón?"
+    expected_items: [cp-slack-mirador-halcon]
+    reference:
+      - "4% de descuento sobre lista si Berg compra cinco departamentos en bloque"
+      - "Financiado con la comisión reducida al 2.5%"
+  - id: g34
+    line: presales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "How much has the list price of Mirador unit 803 gone up since the July price list?"
+    expected_items: [cp-drive-mirador-price-list, cp-drive-mirador-price-list-v1]
+    reference:
+      - "July: USD 229,000"
+      - "Current: USD 238,500"
+      - "Up USD 9,500"
+  - id: g35
+    line: presales
+    language: es
+    asker: cp-lucia
+    question: "¿Cómo prefiere que la contactemos Andrea Villanueva?"
+    expected_items: [cp-hubspot-contact-villanueva]
+    reference:
+      - "Por WhatsApp, por las tardes"
+  - id: g36
+    line: presales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What needs fixing at the Mirador show apartment?"
+    expected_items: [cp-slack-mirador-piloto]
+    reference:
+      - "Replace the lighting in the main bedroom"
+      - "New brochures; 500 ordered from the printer"
+  - id: g37
+    line: presales
+    language: es
+    asker: cp-lucia
+    question: "¿Cuál es el costo de mantenimiento mensual estimado en Mirador del Parque?"
+  - id: g38
+    line: presales
+    language: en
+    asker: cp-diego
+    question: "How many Mirador units has the developer kept for its own sales team?"
+  - id: g39
+    line: presales
+    language: es
+    asker: cp-lucia
+    question: "¿Mirador del Parque tiene aprobado el bono del buen pagador?"
+  - id: g40
+    line: presales
+    language: en
+    asker: cp-lucia
+    question: "What are the gym opening hours at Mirador del Parque?"
 
   # Sales of new and used property
-  - id: g09
+  - id: g41
     line: sales
     language: en
     asker: cp-lucia
-    question: What was the buyer's latest counteroffer for the Las Gardenias house?
+    question: "What was the buyer's latest counteroffer for the Las Gardenias house?"
     expected_items: [cp-gmail-gardenias-buyer-offer]
-  - id: g10
+    reference:
+      - "USD 375,000"
+      - "If they can close by January 15, 2027"
+      - "Their final counteroffer"
+  - id: g42
     line: sales
     language: es
     asker: cp-diego
-    question: ¿Qué observaciones encontró el estudio de títulos de la casa de Las Gardenias?
+    question: "¿Qué observaciones encontró el estudio de títulos de la casa de Las Gardenias?"
     expected_items: [cp-drive-title-check-gardenias]
-  - id: g11
+    reference:
+      - "Hipoteca de USD 48,000 a favor de Banco Andino del Sur, a levantar antes de la escritura"
+      - "Área registral 210 m² frente a 218 m² medidos; requiere saneamiento"
+  - id: g43
     line: sales
     language: en
     cross_language: true
     asker: cp-lucia
-    question: Which resale properties do we have listed in Santiago de Surco, and at what prices?
+    question: "Which resale properties do we have listed in Santiago de Surco, and at what prices?"
     expected_items: [cp-drive-resale-inventory]
-  - id: g12
+    reference:
+      - "Calle Las Gardenias 455, USD 395,000"
+      - "Jirón Los Sauces 1020 apt 701, USD 189,000"
+      - "Calle Monte Azul 318, USD 298,000"
+  - id: g44
     line: sales
     language: es
     asker: cp-lucia
-    question: ¿Qué penalidad fija el borrador de promesa si el comprador desiste?
+    question: "¿Qué penalidad fija el borrador de promesa de Las Gardenias si los compradores desisten?"
     expected_items: [cp-drive-promesa-gardenias-draft]
+    reference:
+      - "Pierden las arras de USD 20,000"
+  - id: g45
+    line: sales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What earnest money and deed deadline does the Los Sauces 701 purchase promise set?"
+    expected_items: [cp-drive-promesa-sauces-draft]
+    reference:
+      - "Earnest money of USD 9,000"
+      - "Deed by December 20, 2026"
+  - id: g46
+    line: sales
+    language: es
+    asker: cp-diego
+    question: "¿En cuánto se tasó la casa de Las Gardenias 455?"
+    expected_items: [cp-drive-tasacion-gardenias]
+    reference:
+      - "Valor comercial USD 368,000"
+      - "Valor de realización USD 331,000"
+  - id: g47
+    line: sales
+    language: en
+    cross_language: true
+    asker: cp-diego
+    question: "Why did we lose the Paredes deal for Las Gardenias?"
+    expected_items: [cp-hubspot-deal-gardenias-paredes]
+    reference:
+      - "The Paredes family offered USD 340,000"
+      - "The sellers would not go below USD 380,000"
+      - "Lost on price"
+  - id: g48
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿Qué observación tiene el estudio de títulos de Los Sauces 701?"
+    expected_items: [cp-drive-title-check-sauces]
+    reference:
+      - "El estacionamiento 14 figura a nombre del anterior propietario; hay que inscribir la compraventa de 2019"
+  - id: g49
+    line: sales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What price was agreed for Los Sauces 701, and how does it compare with the list price?"
+    expected_items: [cp-hubspot-deal-sauces, cp-drive-promesa-sauces-draft]
+    reference:
+      - "Agreed USD 183,000"
+      - "List price USD 189,000"
+  - id: g50
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿La casa de Monte Azul tiene cochera para dos autos?"
+    expected_items: [cp-drive-listing-monte-azul, cp-gmail-ventas-inquiry-monte-azul]
+    reference:
+      - "No: tiene cochera para un auto"
+  - id: g51
+    line: sales
+    language: en
+    cross_language: true
+    asker: cp-lucia
+    question: "What share of the commission does an agent get on a resale under the 2026 policy?"
+    expected_items: [cp-drive-commission-policy]
+    reference:
+      - "30% of the commission charged to the client"
+  - id: g52
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿Qué comisión pactamos con los vendedores de Las Gardenias?"
+    expected_items: [cp-hubspot-deal-gardenias]
+    reference:
+      - "3%"
+  - id: g53
+    line: sales
+    language: en
+    cross_language: true
+    asker: cp-diego
+    question: "What is in this week's sales pipeline?"
+    expected_items: [cp-slack-ventas-pipeline]
+    reference:
+      - "Las Gardenias in counteroffer"
+      - "Monte Azul with two viewings on Saturday"
+      - "9 Mirador separations since launch"
+  - id: g54
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿Cuánto pedían por Las Gardenias en el aviso y cuánto ofreció Whitfield al principio?"
+    expected_items: [cp-drive-listing-gardenias, cp-gmail-gardenias-buyer-offer]
+    reference:
+      - "Precio de lista USD 395,000"
+      - "Primera oferta de USD 360,000"
+  - id: g55
+    line: sales
+    language: en
+    asker: cp-lucia
+    question: "Where is the Casa Prado office, and what are its opening hours?"
+    expected_items: [cp-drive-company-profile]
+    reference:
+      - "Avenida Prado Norte 880, office 402, San Isidro"
+      - "Monday to Friday, 9:00 to 18:00"
+  - id: g56
+    line: sales
+    language: es
+    asker: cp-diego
+    question: "¿Qué inmueble de reventa está reservado y en qué distrito?"
+    expected_items: [cp-drive-resale-inventory]
+    reference:
+      - "Jirón Huiracocha 1455 dpto 501, en Jesús María"
+  - id: g57
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿Cuál fue el precio final de venta de la casa de Monte Azul?"
+  - id: g58
+    line: sales
+    language: en
+    asker: cp-diego
+    question: "How many resale deals did we close in 2025?"
+  - id: g59
+    line: sales
+    language: es
+    asker: cp-lucia
+    question: "¿En qué notaría se firmará la escritura de Las Gardenias?"
+  - id: g60
+    line: sales
+    language: en
+    asker: cp-lucia
+    question: "How much property tax is due on Las Gardenias 455 this year?"
 
   # Rentals
-  - id: g13
+  - id: g61
     line: rentals
     language: en
     cross_language: true
     asker: cp-martin
-    question: What deposit did we agree for the renewal at Torre Alameda 1204?
+    question: "What deposit did we agree for the renewal at Torre Alameda 1204?"
     expected_items: [cp-drive-renewal-alameda-1204, cp-gmail-renewal-alameda-1204]
-  - id: g14
+    reference:
+      - "PEN 7,000, two months of the new rent"
+      - "The tenant tops up PEN 400 on the PEN 6,600 already paid"
+  - id: g62
     line: rentals
     language: en
     asker: cp-martin
-    question: What did the Los Cedros 302 tenant ask about pets, and what is pending?
+    question: "What did the Los Cedros 302 tenant ask about pets, and what is pending?"
     expected_items: [cp-hubspot-note-cedros-302]
-  - id: g15
+    reference:
+      - "Whether she can keep a small dog of about 7 kg"
+      - "The owner Patricia Lazo's written consent is pending"
+  - id: g63
     line: rentals
     language: es
     asker: cp-martin
-    question: ¿Qué departamentos tenemos disponibles para alquilar y a qué renta?
+    question: "¿Qué departamentos tenemos disponibles para alquilar y a qué renta?"
     expected_items: [cp-drive-rental-portfolio]
-  - id: g16
+    reference:
+      - "Los Cedros 104, PEN 2,100, inmediato"
+      - "Torre Alameda 905, PEN 3,200, desde el 1 de diciembre de 2026"
+      - "Malecón Cisneros 1180 dpto 801, PEN 5,500, inmediato"
+  - id: g64
     line: rentals
     language: es
     asker: cp-martin
-    question: ¿Cuánto es la renta mensual de Los Cedros 302 y hasta cuándo va el contrato?
+    question: "¿Cuánto es la renta mensual de Los Cedros 302 y hasta cuándo va el contrato?"
     expected_items: [cp-drive-lease-cedros-302]
+    reference:
+      - "PEN 2,800 al mes"
+      - "Hasta el 28 de febrero de 2027"
+  - id: g65
+    line: rentals
+    language: en
+    cross_language: true
+    asker: cp-martin
+    question: "Did the rent change in the Torre Alameda 907 renewal?"
+    expected_items: [cp-drive-renewal-alameda-0907, cp-gmail-renewal-alameda-0907]
+    reference:
+      - "No, it stays at PEN 2,900"
+      - "The deposit stays at PEN 5,800"
+  - id: g66
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Qué comisión de renovación tiene el deal de Torre Alameda 1204?"
+    expected_items: [cp-hubspot-deal-alameda-1204]
+    reference:
+      - "Medio mes de renta, PEN 1,750"
+  - id: g67
+    line: rentals
+    language: en
+    cross_language: true
+    asker: cp-martin
+    question: "What was the result of Hannah Kowalski's tenant screening?"
+    expected_items: [cp-drive-screening-cedros-302]
+    reference:
+      - "Approved"
+      - "Verified monthly income of PEN 11,500"
+      - "No overdue debts; favourable landlord reference"
+  - id: g68
+    line: rentals
+    language: es
+    cross_language: true
+    asker: cp-martin
+    question: "¿Cuánto se descontó de la garantía del 104 de Los Cedros cuando salió el inquilino?"
+    expected_items: [cp-hubspot-note-cedros-104]
+    reference:
+      - "PEN 350 descontados"
+      - "PEN 3,550 devueltos el 8 de octubre"
+  - id: g69
+    line: rentals
+    language: en
+    cross_language: true
+    asker: cp-martin
+    question: "What rent did the last tenant pay at Los Cedros 104, and what is it advertised at now?"
+    expected_items: [cp-drive-lease-cedros-104, cp-drive-listing-cedros-104]
+    reference:
+      - "Previous rent PEN 1,950"
+      - "Now advertised at PEN 2,100"
+  - id: g70
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Qué inmuebles quedan libres para diciembre?"
+    expected_items: [cp-slack-alquileres-vacancies]
+    reference:
+      - "El 104 de Los Cedros"
+      - "El 905 de Torre Alameda"
+  - id: g71
+    line: rentals
+    language: en
+    cross_language: true
+    asker: cp-martin
+    question: "How many viewings did Los Cedros 104 get this week?"
+    expected_items: [cp-slack-alquileres-visitas]
+    reference:
+      - "Four viewings"
+      - "A couple brings documents on Friday for screening"
+  - id: g72
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Qué ingresos y aval tiene Raúl Cárdenas en su evaluación de inquilino?"
+    expected_items: [cp-drive-screening-alameda-1204]
+    reference:
+      - "Ingresos declarados de PEN 14,000"
+      - "Aval: su hermana, con inmueble propio"
+  - id: g73
+    line: rentals
+    language: en
+    asker: cp-rosa
+    question: "What does the Los Cedros 302 lease say about pets, and what do the building rules allow?"
+    expected_items: [cp-drive-lease-cedros-302, cp-hubspot-note-cedros-302]
+    reference:
+      - "The lease allows pets only with the owner's written consent"
+      - "The building rules allow pets under 10 kg"
+  - id: g74
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Cuánto recibe el asesor por un alquiler según la política de comisiones vigente?"
+    expected_items: [cp-drive-commission-policy]
+    reference:
+      - "El 40% del primer mes de renta cobrado como comisión"
+  - id: g75
+    line: rentals
+    language: en
+    cross_language: true
+    asker: cp-martin
+    question: "What rent did Torre Alameda 905 have in June compared with now?"
+    expected_items: [cp-drive-rental-portfolio-2026-06, cp-drive-rental-portfolio]
+    reference:
+      - "June: PEN 3,100"
+      - "Now: PEN 3,200"
+  - id: g76
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Qué requisitos pide el aviso de alquiler del 104 de Los Cedros?"
+    expected_items: [cp-drive-listing-cedros-104]
+    reference:
+      - "Garantía de dos meses"
+      - "Un mes adelantado"
+  - id: g77
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Cuál es la renta del departamento 1102 de Torre Alameda?"
+  - id: g78
+    line: rentals
+    language: en
+    asker: cp-martin
+    question: "Which tenants are late on their rent this month?"
+  - id: g79
+    line: rentals
+    language: es
+    asker: cp-martin
+    question: "¿Qué penalidad tiene el contrato de Los Cedros 302 por salida anticipada?"
+  - id: g80
+    line: rentals
+    language: en
+    asker: cp-rosa
+    question: "How many rental units does Casa Prado manage in Miraflores?"

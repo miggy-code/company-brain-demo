@@ -10,7 +10,7 @@ Each request carries the question's audit event id as Panoptes' correlation id, 
 proxied exchange joins the question in the audit log.
 """
 
-from typing import Protocol
+from typing import Any, Protocol
 
 import anthropic
 import openai
@@ -86,6 +86,11 @@ class OpenAICompatibleAnswerModel:
 
     def generate(self, prompt: Prompt, correlation_id: str) -> str | dict[str, object] | None:
         model = self._session.model
+        sampling: dict[str, Any] = {}
+        if model.temperature is not None:
+            sampling["temperature"] = model.temperature
+        if model.reasoning_effort is not None:
+            sampling["reasoning_effort"] = model.reasoning_effort
         try:
             response = self._client.chat.completions.create(
                 model=model.name,
@@ -96,6 +101,7 @@ class OpenAICompatibleAnswerModel:
                 ],
                 response_format={"type": "json_object"},
                 extra_headers={CORRELATION_HEADER: correlation_id},
+                **sampling,
             )
         except openai.RateLimitError as exc:
             raise ModelError(f"model call refused (429 {_reason(exc.body)})") from None

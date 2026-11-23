@@ -48,7 +48,9 @@ def test_answer_cites_chunks_and_is_traced_on_the_audit_chain(opened: OpenBusine
         asked = brain.ask(lucia, SEPARATION_502)
 
     assert not asked.answer.not_found
-    assert {c.split("#")[0] for c in asked.answer.cited} == {"cp-gmail-ventas-separation-502"}
+    # The mock cites every source holding all the question's content words: the 502 thread,
+    # and with the grown corpus the 604 one too.
+    assert "cp-gmail-ventas-separation-502" in {c.split("#")[0] for c in asked.answer.cited}
     events = brain_events(opened.world_paths.audit, asked.run_id)
     kinds = [e["event_type"] for e in events]
     assert kinds == ["brain.question", "brain.retrieval"] + ["brain.decision"] * len(asked.hits) + [
@@ -78,6 +80,50 @@ def test_the_model_call_goes_through_the_proxy_with_the_swapped_key(
     assert mock.stats.requests == 1
     assert mock.stats.rejected == 0
     assert mock.stats.paths == ["/v1/chat/completions"]
+
+
+def test_pinned_sampling_settings_reach_the_provider_through_the_proxy(
+    opened: OpenBusiness, tmp_path: Path
+) -> None:
+    carla = opened.person("carla.mendoza@casaprado.example")
+    model = opened.business.model.model_copy(
+        update={"temperature": 0.0, "reasoning_effort": "none"}
+    )
+    with mock_upstream() as mock:
+        keys = mock.write_keys_file(tmp_path / "keys.json", model.provider.value)
+        with model_session(
+            opened.world_paths, carla.id, model, opened.paths.rate_table, keys, upstream=mock.url
+        ) as session:
+            answer_model(session).generate(_prompt(), "corr-3")
+
+    sent = mock.stats.bodies[0]
+    assert (sent["temperature"], sent["reasoning_effort"]) == (0.0, "none")
+
+
+def test_sampling_settings_are_omitted_when_not_configured(
+    opened: OpenBusiness, tmp_path: Path
+) -> None:
+    carla = opened.person("carla.mendoza@casaprado.example")
+    model = opened.business.model.model_copy(update={"temperature": None, "reasoning_effort": None})
+    with mock_upstream() as mock:
+        keys = mock.write_keys_file(tmp_path / "keys.json", model.provider.value)
+        with model_session(
+            opened.world_paths, carla.id, model, opened.paths.rate_table, keys, upstream=mock.url
+        ) as session:
+            answer_model(session).generate(_prompt(), "corr-4")
+
+    assert {"temperature", "reasoning_effort"}.isdisjoint(mock.stats.bodies[0])
+
+
+def test_anthropic_models_refuse_sampling_settings() -> None:
+    with pytest.raises(ValueError, match="openai_compatible"):
+        ModelConfig(
+            provider=Provider.ANTHROPIC,
+            name="claude-opus-5-5",
+            upstream="https://api.anthropic.com",
+            max_output_tokens=16000,
+            reasoning_effort="none",
+        )
 
 
 def test_the_anthropic_client_works_through_the_proxy(opened: OpenBusiness, tmp_path: Path) -> None:
