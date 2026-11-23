@@ -146,6 +146,8 @@ class Version:
     item_id: str
     title: str
     updated: date
+    # The version's best kept chunk: what a follow-up must still be allowed to see (G8).
+    chunk_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -180,6 +182,13 @@ class Answer:
     @property
     def cited(self) -> tuple[str, ...]:
         return tuple(dict.fromkeys(c for s in self.sentences for c in s.chunk_ids))
+
+    @property
+    def shown_chunks(self) -> tuple[str, ...]:
+        """Cited chunks, then the chunk of every version a note names: everything the answer
+        shows, which a follow-up may carry only if its audience can still see it all."""
+        noted = (v.chunk_id for d in self.disagreements for v in d.versions if v.chunk_id)
+        return tuple(dict.fromkeys([*self.cited, *noted]))
 
     @property
     def named_items(self) -> tuple[str, ...]:
@@ -222,8 +231,9 @@ def with_disagreements(answer: Answer, hits: Sequence[Hit]) -> Answer:
     for hit in hits:
         if hit.series is None:
             continue
-        by_series.setdefault(hit.series, {})[hit.item_id] = Version(
-            hit.item_id, hit.item_title, hit.updated
+        # Hits come best first, so the first chunk of an item is its best one.
+        by_series.setdefault(hit.series, {}).setdefault(
+            hit.item_id, Version(hit.item_id, hit.item_title, hit.updated, hit.chunk_id)
         )
         if hit.chunk_id in cited:
             cited_series.add(hit.series)

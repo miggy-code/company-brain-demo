@@ -139,7 +139,7 @@ class Brain:
         answer = with_disagreements(compose(parse_reply(raw), prompt, question), result.hits)
         self._audit.answer(answer.cited, answer.not_found, answer.language)
         if thread is not None:
-            thread.turns.append(Turn(question, answer.text(), answer.cited, audience_ids))
+            thread.turns.append(Turn(question, answer.text(), answer.shown_chunks, audience_ids))
         return Asked(
             question=question,
             asker=asker,
