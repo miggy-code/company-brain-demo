@@ -55,7 +55,7 @@ from brain.redteam.report import write_baseline as write_baseline_file
 from brain.redteam.runner import Runner
 from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business, open_run
-from brain.search.query import Hit, Ranking
+from brain.search.query import PRODUCTION, Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
 from brain.tenancy.config import BusinessPaths, ConfigError, business_paths, load_business
 from brain.tenancy.database import connect, create_database
@@ -279,7 +279,7 @@ def evaluate(
                 if not result.passed:
                     raise typer.Exit(code=1)
                 return
-            rankings = [Ranking.HYBRID_RERANK] if suite is Suite.GOLDEN else list(Ranking)
+            rankings = [PRODUCTION] if suite is Suite.GOLDEN else list(Ranking)
             n = len(golden.questions)
             typer.echo(f"{suite.value}: {n} questions, rankings {', '.join(rankings)}")
             retrieval = retrieval_rows(opened, golden, rankings)

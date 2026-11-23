@@ -40,8 +40,11 @@ class Ranking(StrEnum):
     KEYWORD = "keyword"
     VECTOR = "vector"
     HYBRID = "hybrid"
-    # Production.
     HYBRID_RERANK = "hybrid_rerank"
+
+
+# The ranking every question uses, and so the one the eval gates measure.
+PRODUCTION = Ranking.HYBRID_RERANK
 
 
 @dataclass(frozen=True)
@@ -144,7 +147,7 @@ class Searcher:
         conn: psycopg.Connection,
         embedder: Embedder,
         reranker: Reranker,
-        ranking: Ranking = Ranking.HYBRID_RERANK,
+        ranking: Ranking = PRODUCTION,
     ) -> None:
         self._conn = conn
         self._embedder = embedder
