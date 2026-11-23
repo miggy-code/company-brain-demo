@@ -113,13 +113,15 @@ Each question is scored once, averaged over 3 repeats. Intervals are 95% bootstr
 From [`reports/2026-11-22-first.json`](reports/2026-11-22-first.json): `brain eval casa-prado --suite ablation --model live --keys-file <keys-file> --repeats 3 --report first --readme` at commit `b9ab3e5614d8` on 2026-11-22, answer model and grader `deepseek-flash`, 80 questions x 3 repeats. Means with 95% bootstrap intervals over questions. Synthetic data (Casa Prado is fictional).
 <!-- evals:end -->
 
+Reading the table: the production ranking (`hybrid_rerank`) leads on recall, MRR and correctness, and it never answered "not found" when an answer existed. Keyword search alone missed the source often enough that 12% of answerable questions got "not found". The reranker adds about a second of search latency on a laptop CPU. Citation precision is similar across rankings (0.88 to 0.92). The gap is mostly "partial" support: a sentence that combines facts from several rows cites only one of them. The whole run (960 answers plus grading) cost about USD 0.40 at agentgate's settled rates.
+
 Caveats:
 - The grader is the answer model itself (`deepseek-flash`), so the grader-based numbers carry a self-preference risk.
-- Grader agreement is measured against a sample labelled by the agent (Claude), not by a person: `uv run brain eval casa-prado --suite agreement`.
+- Grader agreement is measured against a sample labelled by the agent (Claude), not by a person. The same agent wrote the corpus and the reference facts, so this measures how consistently the rubric is applied, not independent judgement. On a fixed-seed sample of the report above (`uv run brain eval casa-prado --suite agreement`, labels in `evals/agreement.yaml`), the grader matched on answer correctness 30/30 (kappa 1.00) and on citation support 48/50 (raw 0.96, kappa 0.83). Both disagreements were sentences the labels call partial and the grader called supported.
 
 Gates:
 - In CI, `retrieval-gate` re-indexes with the pinned real models and fails if recall@8 or MRR for the production ranking drops below `evals/thresholds.yaml`.
-- CI never calls a live model. Instead it requires the newest live report in `reports/` to match the current prompts, grader and model config (a fingerprint), and to meet the answer thresholds. A prompt or model change therefore has to land with a new recorded run.
+- CI never calls a live model. Instead it requires the newest live report in `reports/` to match a fingerprint of the current prompts, grader, model config, golden set and scoring code, and to meet the answer thresholds. A change to any of these has to land with a new recorded run.
 
 ## Layout
 
