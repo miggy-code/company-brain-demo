@@ -103,7 +103,8 @@ def check_report(report: dict[str, Any], thresholds: Thresholds, fingerprint: st
     if meta.get("answer_fingerprint") != fingerprint:
         problems.append(
             f"answer fingerprint changed since {meta['label']} ({meta['commit']}): prompts, "
-            "grader or model config changed without a new recorded run"
+            "grader, model config, golden set or scoring code changed without a new recorded"
+            " run"
         )
     gated = report["rankings"].get(GATED.value, {})
     for name, floor in thresholds.answer.model_dump().items():
