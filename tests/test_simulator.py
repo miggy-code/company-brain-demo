@@ -78,6 +78,16 @@ def test_the_storyline_lands_on_its_weeks() -> None:
     assert october.acl == frozenset({GERENCIA})
 
 
+def test_moving_or_renaming_a_file_does_not_make_it_newer() -> None:
+    # Archiving the October list moves and renames it; its content, and so its date, stay.
+    final = {i.id: i for i in final_items(ITEMS, generate(CONFIG, 3, 7))}
+
+    october = final["cp-drive-mirador-price-list"]
+    assert october.location.endswith("/ Archivo")
+    assert october.updated == date(2026, 10, 1)
+    assert final["cp-drive-mirador-separations"].updated == date(2026, 12, 8)  # content changed
+
+
 def test_a_folder_unshare_reaches_files_the_background_added() -> None:
     schedule = generate(CONFIG, 8, 7)
     unshared = {s.event.item_id for s in schedule if s.ref == "jorge-unshared"}  # type: ignore[union-attr]

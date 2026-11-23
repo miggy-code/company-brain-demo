@@ -34,6 +34,8 @@ from brain.search.filters import acl_visible
 from brain.tenancy.config import Business, ConfigError, Slug, read_yaml, validate
 
 DAYS_PER_WEEK = 7
+# Patch fields that change what a document says (the rest are where it is, what it is called).
+CONTENT_FIELDS = frozenset({"body", "messages", "rows", "columns"})
 
 
 class _Strict(BaseModel):
@@ -287,7 +289,10 @@ def _apply_change(state: _State, change: Change, week: int, when: date) -> None:
             if messages:
                 added = [m.model_dump(mode="json") for m in messages]
                 data["messages"] = [*(data.get("messages") or []), *added]
-            data["updated"] = when.isoformat()
+            # A move or a rename leaves the content, and so the document's date, as it was;
+            # otherwise archiving an old version would make it look as new as its successor.
+            if rows or messages or CONTENT_FIELDS & fields.keys():
+                data["updated"] = when.isoformat()
             state.emit(week, when, ref, ItemUpsert(item=Item.model_validate(data)))
         case Share(item=item_id, add=add):
             item = _existing(state, ref, item_id)
