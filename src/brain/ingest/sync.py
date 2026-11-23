@@ -15,7 +15,10 @@ the caller's transaction, the same way for the sync worker, the simulator and th
 For a person event the business row is written first, inside the open transaction, then
 agentgate is synced from that state, and the caller commits. If the agentgate sync fails the
 transaction rolls back and the event is retried; if the commit fails after it, agentgate
-already holds the safer state (a leaver suspended) and the retry is idempotent.
+already holds the safer state (a leaver suspended) and the retry is idempotent. After the
+commit the caller calls `settle`, which syncs agentgate again from the committed table: a
+process that started meanwhile wrote agentgate's users from the table as it was before the
+commit, and would otherwise leave a leaver active there until the next sync.
 """
 
 from dataclasses import dataclass
@@ -109,6 +112,11 @@ class Applier:
                 if not offboard_person(conn, person_id):
                     raise SyncError(f"offboarding for unknown person {person_id!r}")
                 self._sync_people(conn)
+
+    def settle(self, conn: psycopg.Connection, event: Event) -> None:
+        """After `event`'s commit: agentgate's users from the committed persons table."""
+        if isinstance(event, PersonUpsert | PersonOffboard):
+            self._sync_people(conn)
 
     def _sync_people(self, conn: psycopg.Connection) -> None:
         sync_people(self.world, self.business.id, read_directory(self.business, conn))

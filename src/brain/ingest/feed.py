@@ -69,10 +69,12 @@ def apply_next(conn: psycopg.Connection, applier: Applier) -> int | None:
         if row is None:
             return None
         seq, payload = int(row[0]), row[1]
-        applier.apply(conn, EVENT.validate_python(payload))
+        event = EVENT.validate_python(payload)
+        applier.apply(conn, event)
         conn.execute(
             "UPDATE source_events SET applied_at = clock_timestamp() WHERE seq = %s", (seq,)
         )
+    applier.settle(conn, event)
     return seq
 
 

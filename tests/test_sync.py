@@ -3,6 +3,7 @@ into agentgate."""
 
 from collections.abc import Iterator
 from datetime import date
+from typing import Any
 
 import psycopg
 import pytest
@@ -225,3 +226,30 @@ def test_evals_refuse_a_simulated_week(opened: OpenBusiness) -> None:
 
     with pytest.raises(LookupError, match="week 3"):
         require_week_zero(opened.conn)
+
+
+def test_a_process_starting_mid_offboarding_cannot_reactivate_the_leaver(
+    opened: OpenBusiness,
+    feed_conn: psycopg.Connection,
+    fresh_casa_prado: CasaPrado,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cp = fresh_casa_prado
+    real_apply = Applier.apply
+
+    def another_process_opens_meanwhile(
+        self: Applier, conn: psycopg.Connection, event: Any
+    ) -> None:
+        real_apply(self, conn, event)
+        # Before the worker commits, a new process reads the committed persons table (the
+        # leaver still active) and writes agentgate's users from it.
+        with open_business(cp.business_id, cp.businesses_dir, cp.data_dir):
+            pass
+
+    monkeypatch.setattr(Applier, "apply", another_process_opens_meanwhile)
+    commit_events(feed_conn, "simulated", [PersonOffboard(person_id="cp-martin")], DAY)
+
+    apply_next(feed_conn, applier(opened))
+
+    with pytest.raises(GateError):
+        opened.policy.active_user("cp-martin")
