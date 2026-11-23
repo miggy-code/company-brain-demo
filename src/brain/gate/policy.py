@@ -97,7 +97,13 @@ def _write_users(fixture_target: Path, directory: Directory) -> None:
 def sync_people(world: World, business_id: str, directory: Directory) -> None:
     """Bring agentgate's users in line with `directory` now: a new person is added, and a
     person no longer in it is suspended (agentgate's fixture sync), recorded on the chain as
-    a fixture_sync event with no actor (the source changed, not an operator)."""
+    a fixture_sync event with no actor (the source changed, not an operator).
+
+    Temporary workaround named by spec 04: agentgate has no API to provision or suspend a
+    customer's users from a connected directory, so the brain writes agentgate's fixture
+    file and runs its fixture sync. Operator suspension does not fit: it needs an acting
+    owner, is sticky, and an owner cannot suspend themselves. Removed by upstream unit U7
+    (directory sync API in agentgate)."""
     if world.fixtures is None:
         raise GateError("the business world has no fixtures folder")
     _write_users(world.fixtures / business_id, directory)
