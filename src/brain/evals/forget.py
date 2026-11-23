@@ -34,7 +34,7 @@ from brain.evals.metrics import percentile
 from brain.gate.policy import BusinessPolicy, GateError
 from brain.identity.people import Directory, Person, read_directory
 from brain.ingest.sync import Event, ItemAcl, ItemDelete, ItemUpsert, PersonOffboard, PersonUpsert
-from brain.search.filters import PolicyFilter, acl_visible, facts_key
+from brain.search.filters import PolicyFilter, acl_visible
 from brain.search.query import Searcher
 from brain.tenancy.config import Business
 
@@ -104,10 +104,10 @@ class Prober:
                 return self._item(directory, item_id, None, RevocationKind.DELETE)
             case ItemAcl(item_id=item_id, acl=acl):
                 facts = self._facts(item_id)
-                after = None if facts is None else (acl, facts)
+                after = None if facts is None else (acl, *facts)
                 return self._item(directory, item_id, after, RevocationKind.UNSHARE)
             case ItemUpsert(item=item):
-                after = (item.acl, facts_key(item.label, item.tags))
+                after = (item.acl, item.label, item.tags)
                 return self._item(directory, item.id, after, RevocationKind.UNSHARE)
         return None
 
@@ -167,9 +167,10 @@ class Prober:
         self,
         directory: Directory,
         item_id: str,
-        after: tuple[frozenset[str], str] | None,
+        after: tuple[frozenset[str], str, frozenset[str]] | None,
         kind: RevocationKind,
     ) -> Revocation | None:
+        """`after`: the item's (ACL, label, tags) once the event applies; None if deleted."""
         row = self._conn.execute("SELECT title FROM items WHERE id = %s", (item_id,)).fetchone()
         if row is None:
             return None
@@ -180,8 +181,15 @@ class Prober:
             policy = self._filter(person)
             if item_id not in self._searcher.visible_items([principals], policy):
                 continue
+            # The policy decides the new (label, tags) itself: the combination may be one no
+            # item has yet, so the narrowing computed from the database would not list it.
             keeps = after is not None and (
-                acl_visible(after[0], [principals]) and after[1] in policy.allowed_facts
+                acl_visible(after[0], [principals])
+                and bool(
+                    self._policy.search_filter(
+                        self._policy.active_user(person.id), [(after[1], after[2])]
+                    )
+                )
             )
             if not keeps:
                 lost.append(Lost(person.id, item_id, title))
@@ -204,9 +212,11 @@ class Prober:
     def _filter(self, person: Person) -> PolicyFilter:
         return audience_policy_filter(self._conn, self._policy, [person])
 
-    def _facts(self, item_id: str) -> str | None:
-        row = self._conn.execute("SELECT facts_key FROM items WHERE id = %s", (item_id,)).fetchone()
-        return None if row is None else str(row[0])
+    def _facts(self, item_id: str) -> tuple[str, frozenset[str]] | None:
+        row = self._conn.execute(
+            "SELECT label, tags FROM items WHERE id = %s", (item_id,)
+        ).fetchone()
+        return None if row is None else (str(row[0]), frozenset(row[1]))
 
     def _titles(self, item_ids: set[str]) -> dict[str, str]:
         rows = self._conn.execute(
