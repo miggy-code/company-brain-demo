@@ -17,9 +17,9 @@ from brain.ingest.index import require_week_zero
 from brain.ingest.items import load_items
 from brain.ingest.sync import Applier, ItemAcl, PersonOffboard
 from brain.ingest.versions import load_not_versions, version_problems
-from brain.runtime import OpenBusiness, open_business
+from brain.runtime import ModelMode, OpenBusiness, open_business, open_run
 from brain.search.rerank import IdentityReranker
-from brain.sim.generate import SimConfig, generate, load_sim_config
+from brain.sim.generate import SimConfig, generate, load_sim_config, storyline_events
 from brain.sim.run import events_digest, final_items, simulate
 from brain.tenancy.config import ConfigError, business_paths, load_business
 from brain.tenancy.database import connect
@@ -213,3 +213,27 @@ def test_a_replay_forgets_every_revocation_and_leaves_week_n(fresh_casa_prado: C
     assert {m.kind for m in measured} >= {RevocationKind.UNSHARE}
     with connect(cp.business_id) as conn, pytest.raises(LookupError, match="week 4"):
         require_week_zero(conn)
+
+
+def test_after_the_price_revision_the_owner_is_told_the_sources_disagree(
+    opened: OpenBusiness, feed: psycopg.Connection
+) -> None:
+    story = storyline_events(opened.business, ITEMS, PEOPLE, PATHS.sim_dir)
+    applier = Applier(opened.business, opened.world, opened.searcher.embedder)
+    with feed.transaction():
+        for scheduled in story:
+            if scheduled.ref.startswith("price-list-"):
+                applier.apply(feed, scheduled.event)
+    question = "¿Cuál es el precio de lista del 502 en Mirador del Parque?"
+
+    answers = {}
+    for email in ("rosa.prado@casaprado.example", "lucia.quispe@casaprado.example"):
+        person = opened.person(email)
+        with open_run(opened, person, ModelMode.ECHO) as brain:
+            answers[person.id] = brain.ask(person, question).answer
+
+    rosa = [v.item_id for d in answers["cp-rosa"].disagreements for v in d.versions]
+    assert rosa[0] == "cp-drive-mirador-price-list-2026-12"
+    assert "cp-drive-mirador-price-list" in rosa
+    assert "Las fuentes no coinciden" in answers["cp-rosa"].text()
+    assert answers["cp-lucia"].disagreements == ()

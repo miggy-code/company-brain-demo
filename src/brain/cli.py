@@ -63,6 +63,7 @@ from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business, open_run
 from brain.search.query import PRODUCTION, Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
+from brain.sim.generate import storyline_events
 from brain.sim.report import format_simulation, sim_json
 from brain.sim.run import SimError, simulate
 from brain.tenancy.config import BusinessPaths, ConfigError, business_paths, load_business
@@ -455,8 +456,11 @@ def redteam(
             scenarios = load_scenarios(redteam_dir, people)
             if only:
                 scenarios = [s for s in scenarios if s.id in set(only)]
+            story = storyline_events(
+                opened.business, items, load_people(paths.people_file), paths.sim_dir
+            )
             runner = Runner(
-                opened, items, oracle, load_decoys(redteam_dir), model, keys_file, stack
+                opened, items, oracle, load_decoys(redteam_dir), model, keys_file, stack, story
             )
             # The README stamp names the real model and the index the run used.
             label = f"`{model.value}`"

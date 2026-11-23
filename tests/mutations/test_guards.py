@@ -6,15 +6,17 @@ pipeline, a failing audit log. `test_named_scenarios_pass_unmutated` is the cont
 scenarios pass with every guard in place, so each failure below is the mutation's doing.
 """
 
+from dataclasses import replace
 from typing import Any
 
 import pytest
 from psycopg import sql
+from tests.conftest import CasaPrado
 from tests.mutations.conftest import RunScenarios, failed
 
 import brain.answer.pipeline as pipeline
 import brain.search.query as query
-from brain.answer.compose import Answer, Sentence
+from brain.answer.compose import Answer, Disagreement, Sentence, Version
 from brain.answer.compose import compose as real_compose
 from brain.answer.pipeline import Brain
 from brain.answer.threads import Turn
@@ -22,10 +24,12 @@ from brain.answer.threads import carried_turns as real_carried
 from brain.gate.audit import AuditTrail
 from brain.gate.policy import BusinessPolicy, GateError
 from brain.identity.people import read_directory
+from brain.ingest.sync import Applier, ItemAcl, PersonUpsert
 from brain.runtime import ModelMode
 from brain.search.filters import PolicyFilter, facts_key
 from brain.search.filters import permission_clause as real_clause
 from brain.search.query import Searcher, SearchResult
+from brain.tenancy.database import connect
 
 G1 = ("direct-004", "direct-009", "cross_language-001")
 G2 = ("ranking_count-001", "ranking_count-005", "ranking_count-007", "ranking_count-008")
@@ -38,10 +42,13 @@ G8 = ("follow_up-001", "follow_up-002", "follow_up-004")
 G8_QUESTION = ("follow_up-006", "follow_up-007")
 G9 = ("fail_closed-001", "fail_closed-006")
 G10 = ("identity_claim-001", "identity_claim-002")
+# Revocations at the source (unit 04), and the version note built from kept chunks only.
+G11 = ("stale_acl-001", "stale_acl-005")
+VERSION_NOTE = ("stale_acl-006",)
 
 
 def test_named_scenarios_pass_unmutated(run_scenarios: RunScenarios) -> None:
-    named = (*G1, *G2, *G3, *G5, *G7, *G8, *G9, *G10, "direct-001")
+    named = (*G1, *G2, *G3, *G5, *G7, *G8, *G9, *G10, *G11, *VERSION_NOTE, "direct-001")
 
     assert failed(run_scenarios(*named)) == {}
     assert failed(run_scenarios(*G5, mode=ModelMode.OBEY)) == {}
@@ -252,3 +259,58 @@ def test_expected_raise_counts_only_on_the_faulted_turn(
     failures = failed(run_scenarios("fail_closed-005"))
 
     assert "fail_closed-005" in failures
+
+
+def test_g11_a_revocation_replaces_the_acl(
+    run_scenarios: RunScenarios, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_apply = Applier.apply
+
+    def merges(self: Applier, conn: Any, event: Any) -> None:
+        # A sync that adds what the source grants but never takes anything away.
+        if isinstance(event, ItemAcl):
+            row = conn.execute(
+                "SELECT acl_principals FROM items WHERE id = %s", (event.item_id,)
+            ).fetchone()
+            event = ItemAcl(item_id=event.item_id, acl=event.acl | set(row[0]))
+        if isinstance(event, PersonUpsert):
+            current = read_directory(self.business, conn).by_id(event.person.id)
+            if current is not None:
+                kept = set(current.slack_channels) | set(event.person.slack_channels)
+                event = PersonUpsert(
+                    person=event.person.model_copy(update={"slack_channels": tuple(sorted(kept))})
+                )
+        real_apply(self, conn, event)
+
+    monkeypatch.setattr(Applier, "apply", merges)
+
+    failures = failed(run_scenarios(*G11))
+
+    assert set(failures) == set(G11)
+    assert all(any("leaked" in f for f in fs) for fs in failures.values())
+
+
+def test_the_version_note_names_kept_versions_only(
+    run_scenarios: RunScenarios, casa_prado: CasaPrado, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def from_the_whole_index(answer: Answer, hits: Any) -> Answer:
+        # Every version the database holds of a cited series, not just the kept ones.
+        cited = {h.series for h in hits if h.chunk_id in answer.cited and h.series}
+        notes = []
+        with connect(casa_prado.business_id) as conn:
+            for series in sorted(cited):
+                rows = conn.execute(
+                    "SELECT id, title, updated FROM items WHERE series = %s"
+                    " ORDER BY updated DESC, id",
+                    (series,),
+                ).fetchall()
+                versions = tuple(Version(str(r[0]), str(r[1]), r[2]) for r in rows)
+                if len(versions) > 1:
+                    notes.append(Disagreement(series, versions))
+        return replace(answer, disagreements=tuple(notes))
+
+    monkeypatch.setattr(pipeline, "with_disagreements", from_the_whole_index)
+
+    failures = failed(run_scenarios(*VERSION_NOTE))
+
+    assert any("leaked cp-drive-mirador-price-list" in f for fs in failures.values() for f in fs)

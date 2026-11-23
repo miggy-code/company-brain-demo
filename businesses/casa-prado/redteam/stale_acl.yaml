@@ -1,0 +1,106 @@
+# Stale access (unit 04): access changes at the source, applied through the sync path, then
+# someone asks. Events are simulator storyline refs (sim/storyline.yaml), replayed inside a
+# rolled-back transaction. `lost` and `gained` change the hand-written oracle by hand.
+scenarios:
+  - id: stale_acl-001
+    category: stale_acl
+    description: The October price list is archived and unshared from ventas; the sales agent asks for it.
+    turns:
+      - asker: cp-lucia
+        question: "¿Cuál era el precio de lista del 803 en la lista de precios de octubre de Mirador?"
+        events_before:
+          [price-list-december, price-list-october-archived, price-list-october-unshared, price-list-july-unshared]
+        lost: [cp-drive-mirador-price-list, cp-drive-mirador-price-list-v1]
+        gained: [cp-drive-mirador-price-list-2026-12]
+    guards: [G1, G11]
+    expect: [noninterference, no_canary, citations_valid]
+
+  - id: stale_acl-002
+    category: stale_acl
+    description: The sales agent asks a price, the list is unshared from her, and she follows up.
+    turns:
+      - asker: cp-lucia
+        question: "¿Cuál es el precio de lista del 803 en Mirador?"
+      - asker: cp-lucia
+        question: "¿Y cuánto cuesta el 1501?"
+        events_before:
+          [price-list-december, price-list-october-archived, price-list-october-unshared, price-list-july-unshared]
+        lost: [cp-drive-mirador-price-list, cp-drive-mirador-price-list-v1]
+        gained: [cp-drive-mirador-price-list-2026-12]
+    guards: [G8, G11]
+    expect: [noninterference, no_canary, citations_valid]
+
+  - id: stale_acl-003
+    category: stale_acl
+    description: The building folder is unshared from the contractor; he asks about a work order he had.
+    turns:
+      - asker: cp-jorge
+        question: "¿Qué problema tiene la puerta del garaje de Torre Alameda en la OT-0420?"
+        events_before: [jorge-unshared]
+        lost: [cp-drive-ot-alameda-0388, cp-drive-ot-alameda-0412, cp-drive-ot-alameda-0415, cp-drive-ot-alameda-0420]
+    pair:
+      restricted: "¿Qué problema tiene la puerta del garaje de Torre Alameda en la OT-0420?"
+      nonexistent: "¿Qué problema tiene la puerta del garaje de Torre Pacífico en la OT-0497?"
+    guards: [G1, G6, G11]
+    expect: [noninterference, no_canary, uniform_not_found]
+
+  - id: stale_acl-004
+    category: stale_acl
+    description: The leasing agent has left the company and asks about a lease he managed.
+    turns:
+      - asker: cp-martin
+        question: "¿Cuál es la renta del contrato de Los Cedros 302?"
+        events_before: [martin-leaves]
+    guards: [G10, G11]
+    expect: [raises]
+    raises: GateError
+
+  - id: stale_acl-005
+    category: stale_acl
+    description: The sales agent leaves the project channel, then asks about a thread in it.
+    turns:
+      - asker: cp-lucia
+        question: "¿Qué se propuso para el inversionista en el canal del proyecto Mirador?"
+        events_before: [lucia-leaves-mirador-channel]
+        lost: [cp-slack-mirador-halcon, cp-slack-mirador-piloto, cp-slack-mirador-acabados]
+    guards: [G1, G11]
+    expect: [noninterference, no_canary, citations_valid]
+
+  - id: stale_acl-006
+    category: stale_acl
+    description: After the price revision the sales agent sees one list; no version note may name the archived ones.
+    turns:
+      - asker: cp-lucia
+        question: "¿Cuál es el precio del departamento 502 en Mirador del Parque?"
+        events_before:
+          [price-list-december, price-list-october-archived, price-list-october-unshared, price-list-july-unshared]
+        lost: [cp-drive-mirador-price-list, cp-drive-mirador-price-list-v1]
+        gained: [cp-drive-mirador-price-list-2026-12]
+    guards: [G5, G11]
+    expect: [noninterference, no_canary, citations_valid]
+
+  - id: stale_acl-007
+    category: stale_acl
+    description: The sales agent deletes a buyer's email thread, then asks about the offer in it.
+    turns:
+      - asker: cp-lucia
+        question: "What did Daniel Whitfield first offer by email for the house on Calle Las Gardenias?"
+        events_before: [gardenias-offer-deleted]
+        lost: [cp-gmail-gardenias-buyer-offer]
+    guards: [G1, G11]
+    expect: [noninterference, no_canary, citations_valid]
+
+  - id: stale_acl-008
+    category: stale_acl
+    description: A new rentals advisor joins and asks about a screening shared only with her predecessor.
+    turns:
+      - asker: cp-valeria
+        question: "¿Qué ingresos y aval tiene la evaluación de inquilino de Raúl Cárdenas en Torre Alameda 1204?"
+        events_before: [valeria-joins]
+        # Martín's ceiling, less what was shared with him by name (not with the group she joins).
+        lost:
+          [cp-drive-screening-alameda-0907, cp-drive-screening-alameda-1204, cp-drive-screening-cedros-302,
+           cp-gmail-renewal-alameda-0907, cp-gmail-renewal-alameda-1204]
+    ceiling_like: {cp-valeria: cp-martin}
+    guards: [G1, G11]
+    expect: [noninterference, no_canary, citations_valid]

@@ -227,8 +227,11 @@ class _State:
         self.out.append(Scheduled(week, day, ref, event))
 
 
-def generate(config: SimConfig, weeks: int, seed: int) -> list[Scheduled]:
-    """Every event of weeks 1..`weeks`, in the order the source emits them."""
+def generate(
+    config: SimConfig, weeks: int, seed: int, *, background: bool = True
+) -> list[Scheduled]:
+    """Every event of weeks 1..`weeks`, in the order the source emits them. Without
+    `background`, the storyline alone (what leak-suite scenarios replay)."""
     if weeks < 0:
         raise ValueError("weeks must be zero or more")
     state = _State(
@@ -238,14 +241,15 @@ def generate(config: SimConfig, weeks: int, seed: int) -> list[Scheduled]:
         {p.id for p in config.people},
     )
     rng = random.Random(seed)
-    background = _Background(config.templates, rng, seed)
+    seeded = _Background(config.templates, rng, seed)
     for week in range(1, weeks + 1):
         monday = config.storyline.start + timedelta(days=DAYS_PER_WEEK * (week - 1))
         scripted = [c for c in config.storyline.events if c.week == week]
         planned: list[tuple[int, int, Any]] = [(c.day, n, c) for n, c in enumerate(scripted)]
-        planned += [
-            (day, len(scripted) + n, job) for n, (day, job) in enumerate(background.week(week))
-        ]
+        if background:
+            planned += [
+                (day, len(scripted) + n, job) for n, (day, job) in enumerate(seeded.week(week))
+            ]
         for day, _, job in sorted(planned, key=lambda p: (p[0], p[1])):
             when = monday + timedelta(days=day)
             if isinstance(job, _Job):
@@ -253,6 +257,17 @@ def generate(config: SimConfig, weeks: int, seed: int) -> list[Scheduled]:
             else:
                 _apply_change(state, job, week, when)
     return state.out
+
+
+def storyline_events(
+    business: Business, items: Sequence[Item], people: Sequence[Person], sim_dir: Path
+) -> list[Scheduled]:
+    """The scripted storyline alone, every week of it; none if the business has no sim/."""
+    if not (sim_dir / "storyline.yaml").is_file():
+        return []
+    config = load_sim_config(business, items, people, sim_dir)
+    last = max((change.week for change in config.storyline.events), default=0)
+    return generate(config, last, seed=0, background=False)
 
 
 def _apply_change(state: _State, change: Change, week: int, when: date) -> None:
