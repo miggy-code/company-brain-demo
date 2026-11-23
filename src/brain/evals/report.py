@@ -34,11 +34,12 @@ import brain.evals.grader as grader
 import brain.evals.language as language
 from brain.evals.ablation import AnswerRow, RankingSummary, RetrievalRow
 from brain.ingest.embedding import BgeM3Embedder
-from brain.search.query import Ranking
+from brain.search.query import PRODUCTION, Ranking
 from brain.search.rerank import BgeReranker
 from brain.tenancy.config import Business, ConfigError, read_yaml, validate
 
-GATED = Ranking.HYBRID_RERANK
+# The gates measure whatever production runs, so changing production's ranking is gated too.
+GATED = PRODUCTION
 README_START = "<!-- evals:start -->"
 README_END = "<!-- evals:end -->"
 

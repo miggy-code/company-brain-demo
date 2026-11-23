@@ -227,3 +227,15 @@ def test_the_report_check_reads_the_newest_live_report(tmp_path: Path) -> None:
     write("smoke", "mock", "2026-11-21")
 
     assert newest_answer_report(tmp_path)["meta"]["label"] == "first"
+
+
+def test_the_gates_measure_the_ranking_production_uses() -> None:
+    # Gating a named ranking would miss a change to which ranking production runs.
+    from inspect import signature
+
+    from brain.evals import report
+    from brain.search import query
+
+    default = signature(query.Searcher).parameters["ranking"].default
+
+    assert report.GATED is query.PRODUCTION is default
