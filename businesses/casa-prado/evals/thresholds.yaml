@@ -1,0 +1,14 @@
+# Gates for the production ranking (hybrid_rerank), set from the first recorded live run
+# (Miguel 2026-11-21: retrieval at the recorded mean minus 0.02; answer metrics at the run's
+# 95% bootstrap lower bound), rounded down to two decimals.
+# CI checks retrieval directly with the real models (retrieval-gate.yml) and the answer
+# metrics through the newest live report (`brain eval --check-report`).
+source: reports/2026-11-22-first.json
+retrieval:
+  recall_at_8: 0.97     # recorded 0.992
+  mrr: 0.91             # recorded 0.938
+answer:
+  citation_precision: 0.82  # recorded 0.879 [0.824, 0.929]
+  correctness: 0.95         # recorded 0.984 [0.953, 1.000]
+  correct_not_found: 1.00   # recorded 1.000 [1.000, 1.000], n=16
+  language_match: 1.00      # recorded 1.000 [1.000, 1.000], n=80

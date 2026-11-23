@@ -103,6 +103,14 @@ The golden set (`businesses/casa-prado/evals/golden.yaml`) has 80 questions: 20 
 Each question is scored once, averaged over 3 repeats. Intervals are 95% bootstraps over questions, with a fixed seed. The answer model runs at temperature 0 with thinking off. DeepSeek takes no seed, so the repeats show the variance that remains.
 
 <!-- evals:start -->
+| Ranking | Recall@8 | MRR | Citation precision | Correct | Correct not-found | False not-found | Language match | USD/answer | p50 / p95 ms |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `keyword` | 0.84 [0.75, 0.92] n=64 | 0.67 [0.57, 0.77] n=64 | 0.92 [0.86, 0.97] n=56 | 0.81 [0.70, 0.90] n=64 | 1.00 [1.00, 1.00] n=16 | 0.12 [0.05, 0.22] n=64 | 1.00 [1.00, 1.00] n=80 | 0.000242 | 1350 / 1998 |
+| `vector` | 0.97 [0.93, 1.00] n=64 | 0.86 [0.79, 0.93] n=64 | 0.90 [0.85, 0.95] n=64 | 0.87 [0.78, 0.95] n=64 | 0.96 [0.88, 1.00] n=16 | 0.03 [0.00, 0.07] n=64 | 1.00 [1.00, 1.00] n=80 | 0.000248 | 1496 / 2394 |
+| `hybrid` | 0.98 [0.95, 1.00] n=64 | 0.82 [0.74, 0.89] n=64 | 0.89 [0.84, 0.94] n=64 | 0.90 [0.82, 0.96] n=64 | 1.00 [1.00, 1.00] n=16 | 0.00 [0.00, 0.00] n=64 | 0.99 [0.96, 1.00] n=80 | 0.000239 | 1516 / 2218 |
+| `hybrid_rerank` | 0.99 [0.98, 1.00] n=64 | 0.94 [0.89, 0.98] n=64 | 0.88 [0.82, 0.93] n=64 | 0.98 [0.95, 1.00] n=64 | 1.00 [1.00, 1.00] n=16 | 0.00 [0.00, 0.00] n=64 | 1.00 [1.00, 1.00] n=80 | 0.000238 | 2526 / 3301 |
+
+From [`reports/2026-11-22-first.json`](reports/2026-11-22-first.json): `brain eval casa-prado --suite ablation --model live --keys-file <keys-file> --repeats 3 --report first --readme` at commit `b9ab3e5614d8` on 2026-11-22, answer model and grader `deepseek-flash`, 80 questions x 3 repeats. Means with 95% bootstrap intervals over questions. Synthetic data (Casa Prado is fictional).
 <!-- evals:end -->
 
 Caveats:
