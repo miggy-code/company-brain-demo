@@ -3,17 +3,23 @@ lost it.
 
 Before a revocation is committed (with the feed drained, so the database is current), the
 probe works out who loses what: every active person who can see the item now and could not
-under the event's new state. After the commit it checks, every TICK seconds, the brain's own
-view through its own code path, read fresh each time:
+under the event's new state.
+
+The time is read from the database's own clock: from the event's commit to the change feed
+(`committed_at`) to the commit of the worker's transaction that applied it (`applied_at` is
+stamped inside it). From that commit on, every query reads the new state. Timing the probe's
+own checks instead would mostly measure the probe: a reranked search takes about a second on
+a CPU.
+
+The probe then confirms it, through the brain's own code path, read fresh each time:
 
 - the person's principals from the persons table, the policy narrowing for their role;
 - the item is not among the items they may see (the permission predicate), and a search on
   the item's title returns none of its chunks;
 - for an offboarding, the person no longer resolves and agentgate refuses them.
 
-No model is called. The clock starts just after the commit returns and stops at the first
-check that finds everything gone; a revocation not forgotten within the bound is reported
-as such (seconds None) and fails the run.
+No model is called. A revocation applied later than the bound, or never confirmed gone, is
+reported as not forgotten (seconds None) and fails the run.
 """
 
 import time
@@ -33,6 +39,8 @@ from brain.search.query import Searcher
 from brain.tenancy.config import Business
 
 TICK = 0.025
+# How long the probe may take to confirm an applied revocation (its searches are slow on CPU).
+CONFIRM_GRACE = 60.0
 
 
 class RevocationKind(StrEnum):
@@ -129,19 +137,24 @@ class Prober:
         self,
         ref: str,
         revocation: Revocation,
+        seq: int,
         bound: float,
         *,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> Measurement:
-        """Call just after the revocation's commit returns."""
-        start = clock()
+        """Call just after the revocation's commit returns; `seq` is its place in the feed."""
+        deadline = clock() + bound + CONFIRM_GRACE
         seconds: float | None = None
-        while True:
-            if self.gone(revocation):
-                seconds = clock() - start
-                break
-            if clock() - start > bound:
+        while clock() < deadline:
+            applied = self._conn.execute(
+                "SELECT extract(epoch FROM applied_at - committed_at) FROM source_events"
+                " WHERE seq = %s",
+                (seq,),
+            ).fetchone()
+            if applied is not None and applied[0] is not None and self.gone(revocation):
+                taken = float(applied[0])
+                seconds = taken if taken <= bound else None
                 break
             sleep(TICK)
         people = len({lost.person_id for lost in revocation.lost})

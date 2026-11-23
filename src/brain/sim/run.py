@@ -127,9 +127,9 @@ def simulate(
                     revocation = prober.revocation(scheduled.event)
                     if revocation is not None:
                         time.sleep(phase.uniform(0, poll_interval))
-                    commit_events(feed, SOURCE, [scheduled.event], sim_date)
+                    (committed,) = commit_events(feed, SOURCE, [scheduled.event], sim_date)
                     if revocation is not None:
-                        measured = prober.measure(scheduled.ref, revocation, bound)
+                        measured = prober.measure(scheduled.ref, revocation, committed.seq, bound)
                         result.measurements.append(measured)
             _drain(feed, worker)
             kinds: Counter[str] = Counter(s.event.kind for s in this_week)

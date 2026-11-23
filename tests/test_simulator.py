@@ -3,7 +3,7 @@
 import os
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import date
 
 import psycopg
@@ -13,6 +13,7 @@ from tests.conftest import REPO, CasaPrado
 from brain.evals.forget import Measurement, Prober, RevocationKind, forget_stats
 from brain.identity.people import load_people
 from brain.ingest.embedding import HashEmbedder
+from brain.ingest.feed import apply_next, commit_events
 from brain.ingest.index import require_week_zero
 from brain.ingest.items import load_items
 from brain.ingest.sync import Applier, ItemAcl, PersonOffboard
@@ -175,6 +176,30 @@ def test_the_probe_sees_an_offboarding_only_once_agentgate_refuses_the_person(
     with feed.transaction():
         Applier(opened.business, opened.world, opened.searcher.embedder).apply(feed, leave)
     assert prober.gone(revocation)
+
+
+def test_an_applied_change_that_does_not_revoke_is_not_forgotten(
+    opened: OpenBusiness, feed: psycopg.Connection
+) -> None:
+    prober = Prober(opened.business, feed, opened.policy, opened.searcher.on(feed))
+    unshare = ItemAcl(item_id="cp-drive-mirador-price-list", acl=frozenset({GERENCIA}))
+    revocation = prober.revocation(unshare)
+    assert revocation is not None
+    # A broken sync: the source revoked, but what lands keeps ventas in the ACL.
+    kept = ItemAcl(item_id="cp-drive-mirador-price-list", acl=frozenset({GERENCIA, VENTAS}))
+    (committed,) = commit_events(feed, "simulated", [kept], date(2026, 12, 14))
+    assert apply_next(feed, Applier(opened.business, opened.world, opened.searcher.embedder))
+
+    measured = prober.measure(
+        "broken", revocation, committed.seq, 0.0, clock=_fake_clock(), sleep=lambda _: None
+    )
+
+    assert measured.seconds is None
+
+
+def _fake_clock() -> Callable[[], float]:
+    ticks = iter(range(10_000))
+    return lambda: float(next(ticks))
 
 
 def test_nothing_is_measured_for_a_change_nobody_loses_by(
