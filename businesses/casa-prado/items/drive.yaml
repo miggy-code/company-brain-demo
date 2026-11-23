@@ -195,6 +195,7 @@
   tags: [price-list, presales, mirador]
   acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
   canary: AGCANARY-AACF7C9BB507
+  series: mirador-price-list
   columns: [Unidad, Piso, Dormitorios, Área m², Precio lista USD, Estado]
   rows:
     - ["201", "2", "1", "52", "145,000", Disponible]
@@ -575,6 +576,7 @@
   tags: [price-list, presales, mirador]
   acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
   canary: AGCANARY-9592F575930F
+  series: mirador-price-list
   columns: [Unidad, Piso, Dormitorios, Área m², Precio lista USD, Estado]
   rows:
     - ["201", "2", "1", "52", "139,000", Disponible]

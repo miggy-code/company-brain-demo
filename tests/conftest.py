@@ -13,6 +13,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
+from brain.identity.people import Person, load_people
 from brain.ingest.embedding import HashEmbedder
 from brain.ingest.index import rebuild_index
 from brain.ingest.items import Item, load_items
@@ -39,8 +40,11 @@ def scratch_db() -> Iterator[psycopg.Connection]:
         drop_database(business_id)
 
 
-def index(conn: psycopg.Connection, items: list[Item]) -> None:
-    rebuild_index(conn, items, HashEmbedder(), IdentityReranker())
+def index(conn: psycopg.Connection, items: list[Item], people: list[Person] | None = None) -> None:
+    """Week 0 with the fakes; Casa Prado's people unless others are given."""
+    if people is None:
+        people = list(load_people(CASA_PRADO / "people.yaml"))
+    rebuild_index(conn, items, people, HashEmbedder(), IdentityReranker())
     conn.commit()
 
 
@@ -58,22 +62,43 @@ class CasaPrado:
         return self.businesses_dir / self.business_id
 
 
-@pytest.fixture(scope="session")
-def casa_prado(tmp_path_factory: pytest.TempPathFactory) -> Iterator[CasaPrado]:
-    """Casa Prado's fixtures, renamed to a scratch id and indexed with the fakes."""
-    business_id = scratch_id("cp-test")
-    root = tmp_path_factory.mktemp("businesses")
+def _copy_casa_prado(root: Path, business_id: str) -> list[Item]:
     target = root / business_id
     shutil.copytree(CASA_PRADO, target)
     for name in ("business.yaml", "policy/policy.yaml"):
         path = target / name
         text = path.read_text().replace("id: casa-prado", f"id: {business_id}")
         path.write_text(text.replace("customer: casa-prado", f"customer: {business_id}"))
-    items = load_items(target / "items")
+    return load_items(target / "items")
+
+
+@pytest.fixture(scope="session")
+def casa_prado(tmp_path_factory: pytest.TempPathFactory) -> Iterator[CasaPrado]:
+    """Casa Prado's fixtures, renamed to a scratch id and indexed with the fakes. Shared by
+    the session: tests must leave it as they found it (rolled-back transactions only)."""
+    business_id = scratch_id("cp-test")
+    root = tmp_path_factory.mktemp("businesses")
+    items = _copy_casa_prado(root, business_id)
     create_database(business_id)
     try:
         with connect(business_id) as conn:
             index(conn, items)
         yield CasaPrado(business_id, root, tmp_path_factory.mktemp("data"), items)
+    finally:
+        drop_database(business_id)
+
+
+@pytest.fixture
+def fresh_casa_prado(tmp_path: Path) -> Iterator[CasaPrado]:
+    """A Casa Prado of the test's own, for tests that commit changes (sync, simulator)."""
+    business_id = scratch_id("cp-fresh")
+    root = tmp_path / "businesses"
+    root.mkdir()
+    items = _copy_casa_prado(root, business_id)
+    create_database(business_id)
+    try:
+        with connect(business_id) as conn:
+            index(conn, items)
+        yield CasaPrado(business_id, root, tmp_path / "data", items)
     finally:
         drop_database(business_id)

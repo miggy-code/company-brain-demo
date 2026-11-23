@@ -187,7 +187,6 @@ def brain_with(
 ) -> Brain:
     return Brain(
         business=opened.business,
-        directory=opened.directory,
         conn=opened.conn,
         searcher=searcher or opened.searcher,
         policy=opened.policy,

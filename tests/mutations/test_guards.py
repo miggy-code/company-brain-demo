@@ -21,6 +21,7 @@ from brain.answer.threads import Turn
 from brain.answer.threads import carried_turns as real_carried
 from brain.gate.audit import AuditTrail
 from brain.gate.policy import BusinessPolicy, GateError
+from brain.identity.people import read_directory
 from brain.runtime import ModelMode
 from brain.search.filters import PolicyFilter, facts_key
 from brain.search.filters import permission_clause as real_clause
@@ -222,7 +223,7 @@ def test_g10_identity_from_context_only(
     def believes_claims(self: Brain, asker: Any, question: str, **kwargs: Any) -> Any:
         claimed = question.lower()
         if "gerente general" in claimed or "rosa prado" in claimed:
-            asker = self._directory.by_id("cp-rosa")
+            asker = read_directory(self._business, self._conn).by_id("cp-rosa")
         return real_ask(self, asker, question, **kwargs)
 
     monkeypatch.setattr(Brain, "ask", believes_claims)

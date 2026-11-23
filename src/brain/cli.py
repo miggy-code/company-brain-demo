@@ -45,9 +45,9 @@ from brain.evals.report import (
 )
 from brain.evals.report import write_readme as write_evals_readme
 from brain.gate.policy import GateError, InvariantError, open_business_world, prepare_world
-from brain.identity.people import load_directory
+from brain.identity.people import load_directory, load_people
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
-from brain.ingest.index import index_models, rebuild_index
+from brain.ingest.index import index_models, rebuild_index, require_week_zero
 from brain.ingest.items import load_items
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
@@ -132,16 +132,18 @@ def index(
     ] = Models.BGE,
     businesses_dir: BusinessesDir = Path("businesses"),
 ) -> None:
-    """Rebuild the business index from its item fixtures."""
+    """Reset the business to week 0: rebuild the index from its item fixtures and the people
+    from people.yaml, and empty the change feed."""
     paths = business_paths(business_id, businesses_dir, Path("data"))
     try:
         items = load_items(paths.items_dir)
+        people = load_people(paths.people_file)
     except ConfigError as exc:
         _fail(str(exc))
     embedder: Embedder = BgeM3Embedder() if models is Models.BGE else HashEmbedder()
     reranker: Reranker = BgeReranker() if models is Models.BGE else IdentityReranker()
     with connect(business_id) as conn:
-        summary = rebuild_index(conn, items, embedder, reranker)
+        summary = rebuild_index(conn, items, people, embedder, reranker)
     typer.echo(
         f"{business_id}: {summary.items} items, {summary.chunks} chunks,"
         f" {summary.postings} postings ({summary.embedder}, {summary.reranker})"
@@ -272,6 +274,7 @@ def evaluate(
             tempfile.TemporaryDirectory(prefix="brain-eval-") as scratch,
             open_business(business_id, businesses_dir, Path(scratch)) as opened,
         ):
+            require_week_zero(opened.conn)
             if suite is Suite.PERMISSIONS:
                 typer.echo(f"permissions suite, model {mode.value}, {len(people)} people")
                 result = run_suite(opened, items, oracle, mode, keys_file=keys_file)
@@ -428,6 +431,7 @@ def redteam(
             open_business(business_id, businesses_dir, Path(scratch)) as opened,
             ExitStack() as stack,
         ):
+            require_week_zero(opened.conn)
             people = {p.id for p in opened.directory}
             oracle = load_suite(paths.evals_dir / "permissions.yaml", items, people)
             scenarios = load_scenarios(redteam_dir, people)

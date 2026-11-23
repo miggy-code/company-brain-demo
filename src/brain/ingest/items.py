@@ -60,6 +60,8 @@ class Item(_Strict):
     # Empty means nobody may see it.
     acl: frozenset[Principal]
     canary: Annotated[str, Field(pattern=r"^AGCANARY-[0-9A-F]{12}$")] | None = None
+    # Items with the same series are versions of one document (see ingest.versions).
+    series: Slug | None = None
     body: str | None = None
     messages: tuple[Message, ...] | None = None
     columns: tuple[str, ...] | None = None

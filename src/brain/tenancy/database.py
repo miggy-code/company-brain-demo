@@ -71,8 +71,11 @@ def migrate(conn: psycopg.Connection) -> list[str]:
 
 
 @contextmanager
-def connect(business_id: str, admin: str | None = None) -> Iterator[psycopg.Connection]:
-    """A connection to one business's database, with pgvector types registered."""
-    with psycopg.connect(business_url(business_id, admin)) as conn:
+def connect(
+    business_id: str, admin: str | None = None, *, autocommit: bool = False
+) -> Iterator[psycopg.Connection]:
+    """A connection to one business's database, with pgvector types registered. The change
+    feed needs `autocommit=True`, so each `transaction()` block is a real commit."""
+    with psycopg.connect(business_url(business_id, admin), autocommit=autocommit) as conn:
         register_vector(conn)
         yield conn
