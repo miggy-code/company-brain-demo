@@ -144,7 +144,7 @@ class Searcher:
         conn: psycopg.Connection,
         embedder: Embedder,
         reranker: Reranker,
-        ranking: Ranking = Ranking.HYBRID_RERANK,
+        ranking: Ranking = Ranking.HYBRID,
     ) -> None:
         self._conn = conn
         self._embedder = embedder
