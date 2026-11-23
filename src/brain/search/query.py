@@ -203,7 +203,8 @@ class Searcher:
             )
         else:
             ranked = [(candidate, 0.0) for candidate in candidates]
-        # Before the cut, so a newer version just below the top k joins the older one.
+        # Before the cut, so a newer version just below the top k joins the older one. Only
+        # with the reranker is there anything below the cut: the other rankings pool k.
         ranked = newer_versions_first(
             ranked, lambda entry: (entry[0][0][1], entry[0][0][12], entry[0][0][6]), k
         )

@@ -1,5 +1,6 @@
 """The company simulator: deterministic weeks, the real sync path, and time to forget."""
 
+import json
 import os
 import subprocess
 import sys
@@ -8,15 +9,20 @@ from datetime import date
 
 import psycopg
 import pytest
+from agentgate.audit.panoptes import PanoptesSink
 from tests.conftest import REPO, CasaPrado
 
+from brain.answer.compose import Prompt
+from brain.answer.pipeline import Brain
+from brain.answer.threads import Thread
 from brain.evals.forget import Measurement, Prober, RevocationKind, forget_stats
+from brain.gate.audit import AuditTrail
 from brain.identity.people import load_people
 from brain.ingest.embedding import HashEmbedder
 from brain.ingest.feed import apply_next, commit_events
 from brain.ingest.index import require_week_zero
 from brain.ingest.items import load_items
-from brain.ingest.sync import Applier, ItemAcl, PersonOffboard
+from brain.ingest.sync import Applier, ItemAcl, ItemUpsert, PersonOffboard
 from brain.ingest.versions import load_not_versions, version_problems
 from brain.runtime import ModelMode, OpenBusiness, open_business, open_run
 from brain.search.rerank import IdentityReranker
@@ -202,6 +208,17 @@ def _fake_clock() -> Callable[[], float]:
     return lambda: float(next(ticks))
 
 
+def test_an_update_with_new_tags_the_policy_allows_revokes_nothing(
+    opened: OpenBusiness, feed: psycopg.Connection
+) -> None:
+    prober = Prober(opened.business, feed, opened.policy, opened.searcher.on(feed))
+    price_list = next(i for i in ITEMS if i.id == "cp-drive-mirador-price-list")
+    # A (label, tags) combination no item has yet; staff may read any confidential item.
+    retagged = price_list.model_copy(update={"tags": price_list.tags | {"revised"}})
+
+    assert prober.revocation(ItemUpsert(item=retagged)) is None
+
+
 def test_nothing_is_measured_for_a_change_nobody_loses_by(
     opened: OpenBusiness, feed: psycopg.Connection
 ) -> None:
@@ -262,3 +279,48 @@ def test_after_the_price_revision_the_owner_is_told_the_sources_disagree(
     assert "cp-drive-mirador-price-list" in rosa
     assert "Las fuentes no coinciden" in answers["cp-rosa"].text()
     assert answers["cp-lucia"].disagreements == ()
+
+
+class CitesTheNewestList:
+    """A model that cites only the December price list, so the note names more than it cites."""
+
+    def generate(self, prompt: Prompt, correlation_id: str) -> str:
+        n = next(n for n, c in prompt.sources.items() if c.startswith(DECEMBER + "#"))
+        sentence = {"text": "El 502 cuesta USD 189,500.", "citations": [n]}
+        return json.dumps({"language": "es", "sentences": [sentence], "not_found": False})
+
+
+DECEMBER = "cp-drive-mirador-price-list-2026-12"
+
+
+def test_a_thread_turn_records_the_versions_its_note_names(
+    opened: OpenBusiness, feed: psycopg.Connection
+) -> None:
+    # G8 carries a turn only if what it showed is still visible; the note shows versions too.
+    story = storyline_events(opened.business, ITEMS, PEOPLE, PATHS.sim_dir)
+    applier = Applier(opened.business, opened.world, opened.searcher.embedder)
+    with feed.transaction():
+        for scheduled in story:
+            if scheduled.ref.startswith("price-list-"):
+                applier.apply(feed, scheduled.event)
+    rosa = opened.person("rosa.prado@casaprado.example")
+    sink = opened.world.sink
+    assert isinstance(sink, PanoptesSink)
+    brain = Brain(
+        business=opened.business,
+        conn=opened.conn,
+        searcher=opened.searcher,
+        policy=opened.policy,
+        model=CitesTheNewestList(),
+        audit=AuditTrail(sink.db, opened.business.id, "run-test", rosa.id),
+    )
+    thread = Thread("t")
+
+    answer = brain.ask(
+        rosa, "¿Cuál es el precio de lista del 502 en Mirador?", thread=thread
+    ).answer
+
+    noted = {v.item_id for d in answer.disagreements for v in d.versions}
+    assert {c.split("#")[0] for c in answer.cited} == {DECEMBER}
+    assert len(noted) > 1
+    assert noted <= {c.split("#")[0] for c in thread.turns[0].cited}
