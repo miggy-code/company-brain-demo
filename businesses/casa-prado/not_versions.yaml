@@ -1,0 +1,9 @@
+# Items the unlinked-version check (ingest/versions.py) pairs as likely versions, which are in
+# fact separate documents. Each group: no two of its items are versions of each other.
+groups:
+  - items: [cp-drive-brochure-mirador, cp-drive-brochure-mirador-en]
+    why: The same brochure in two languages; both are current.
+  - items: [cp-drive-fees-alameda-2026-08, cp-drive-fees-alameda-2026-09, cp-drive-fees-alameda-2026-10]
+    why: One fee statement per month; a later month does not replace an earlier one.
+  - items: [cp-drive-fees-cedros-2026-09, cp-drive-fees-cedros-2026-10]
+    why: One fee statement per month; a later month does not replace an earlier one.

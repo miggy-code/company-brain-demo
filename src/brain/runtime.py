@@ -25,7 +25,7 @@ from brain.gate.policy import (
     prepare_world,
 )
 from brain.gate.session import ModelSession, model_session
-from brain.identity.people import Directory, Person, load_directory
+from brain.identity.people import Directory, Person, read_directory
 from brain.ingest.embedding import embedder_named
 from brain.ingest.index import index_models
 from brain.search.query import Searcher
@@ -55,12 +55,16 @@ _MOCK_MODES = {
 class OpenBusiness:
     business: Business
     paths: BusinessPaths
-    directory: Directory
     world_paths: WorldPaths
     world: World
     policy: BusinessPolicy
     conn: psycopg.Connection
     searcher: Searcher
+
+    @property
+    def directory(self) -> Directory:
+        """The people as the persons table holds them now (sync may change it any time)."""
+        return read_directory(self.business, self.conn)
 
     def person(self, email: str) -> Person:
         person = self.directory.by_email(email)
@@ -73,16 +77,15 @@ class OpenBusiness:
 def open_business(business_id: str, businesses_dir: Path, data_dir: Path) -> Iterator[OpenBusiness]:
     paths = business_paths(business_id, businesses_dir, data_dir)
     business = load_business(paths)
-    directory = load_directory(business, paths.people_file)
-    world_paths = prepare_world(business, directory, paths)
     with ExitStack() as stack:
-        world = stack.enter_context(open_business_world(world_paths))
         conn = stack.enter_context(connect(business.id))
         embedder, reranker = index_models(conn)
+        # agentgate's users come from the persons table, so a leaver stays suspended.
+        world_paths = prepare_world(business, read_directory(business, conn), paths)
+        world = stack.enter_context(open_business_world(world_paths))
         yield OpenBusiness(
             business=business,
             paths=paths,
-            directory=directory,
             world_paths=world_paths,
             world=world,
             policy=BusinessPolicy(world, business.id),
@@ -161,7 +164,6 @@ def make_brain(
         raise GateError("the business world has no Panoptes audit log")
     return Brain(
         business=opened.business,
-        directory=opened.directory,
         conn=opened.conn,
         searcher=opened.searcher if searcher is None else searcher,
         policy=opened.policy if policy is None else policy,

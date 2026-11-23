@@ -13,7 +13,7 @@ from tests.conftest import index
 from brain.ingest.embedding import HashEmbedder
 from brain.ingest.items import Item
 from brain.search.filters import PolicyFilter, facts_key, permission_clause
-from brain.search.query import Ranking, Searcher
+from brain.search.query import Ranking, Searcher, newer_versions_first
 from brain.search.rerank import IdentityReranker
 from brain.search.tokens import tokenize
 
@@ -252,3 +252,90 @@ def test_the_reranker_sees_each_chunk_with_its_item_title(scratch_db: psycopg.Co
     Searcher(scratch_db, HashEmbedder(), reranker).search([ANA], allow("internal"), "cuotas")
 
     assert reranker.texts == ["Cuotas octubre\nDepartamento: 304; Deuda PEN: 900"]
+
+
+# Versions: recency within a series only
+
+
+def _v(item_id: str, series: str | None, day: int) -> tuple[str, str | None, date]:
+    return (item_id, series, date(2026, 11, day))
+
+
+def test_the_newer_version_moves_directly_above_the_older_one() -> None:
+    ranked = [_v("old", "s", 1), _v("x", None, 5), _v("y", None, 5), _v("new", "s", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, len(ranked))
+
+    assert [e[0] for e in out] == ["new", "old", "x", "y"]
+
+
+def test_only_series_members_move_and_an_already_newer_first_list_stays() -> None:
+    ranked = [_v("x", None, 5), _v("new", "s", 9), _v("y", None, 5), _v("old", "s", 1)]
+
+    assert newer_versions_first(ranked, lambda e: e, len(ranked)) == ranked
+
+
+def test_three_versions_end_newest_first() -> None:
+    ranked = [_v("v1", "s", 1), _v("x", None, 5), _v("v2", "s", 5), _v("v3", "s", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, len(ranked))
+
+    assert [e[0] for e in out] == ["v3", "v2", "v1", "x"]
+
+
+def test_two_series_reorder_independently() -> None:
+    ranked = [_v("a-old", "a", 1), _v("b-old", "b", 1), _v("a-new", "a", 9), _v("b-new", "b", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, len(ranked))
+
+    assert [e[0] for e in out] == ["a-new", "a-old", "b-new", "b-old"]
+
+
+def test_a_newer_version_below_the_cut_replaces_the_weakest_other_entry() -> None:
+    ranked = [_v("x", None, 5), _v("old", "s", 1), _v("y", None, 5), _v("new", "s", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, 3)
+
+    assert [e[0] for e in out[:3]] == ["x", "new", "old"]
+    assert [e[0] for e in out[3:]] == ["y"]
+
+
+def test_an_older_version_at_the_cut_stays_when_the_newer_is_pulled_in() -> None:
+    ranked = [_v("x", None, 5), _v("y", None, 5), _v("old", "s", 1), _v("new", "s", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, 3)
+
+    assert [e[0] for e in out[:3]] == ["x", "new", "old"]
+
+
+def test_no_pull_in_when_the_top_k_holds_only_series_entries() -> None:
+    ranked = [_v("old", "s", 1), _v("other", "t", 1), _v("new", "s", 9)]
+
+    out = newer_versions_first(ranked, lambda e: e, 2)
+
+    assert [e[0] for e in out] == ["old", "other", "new"]
+
+
+def test_search_pulls_a_newer_version_from_below_the_cut(scratch_db: psycopg.Connection) -> None:
+    def version(item_id: str, body: str, day: int) -> Item:
+        item = doc(item_id, body, ["anyone"], title="Lista de precios")
+        return item.model_copy(update={"series": "precios", "updated": date(2026, 11, day)})
+
+    fillers = [doc(f"f{n}", f"precio de la unidad 502 nota {n}", ["anyone"]) for n in range(6)]
+    old = version("old", "precio unidad 502 precio 502 USD 182,000", 1)
+    new = version("new", "lista revisada USD 189,500", 20)
+    index(scratch_db, [old, new, *fillers])
+    query = "precio unidad 502"
+
+    linked = [
+        h.item_id for h in searcher(scratch_db).search([ANA], allow("internal"), query, k=3).hits
+    ]
+    scratch_db.execute("UPDATE items SET series = NULL")
+    unlinked = [
+        h.item_id for h in searcher(scratch_db).search([ANA], allow("internal"), query, k=3).hits
+    ]
+
+    assert "new" not in unlinked  # the control: on its own, the new version misses the cut
+    assert "old" in unlinked
+    at = linked.index("new")
+    assert linked[at + 1] == "old"

@@ -30,6 +30,7 @@ def hit(item_id: str, text: str = "texto") -> Hit:
         acl=("anyone",),
         location="part 1",
         text=text,
+        series=None,
         keyword_rank=1,
         vector_rank=1,
         fused=0.0,

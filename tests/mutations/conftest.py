@@ -8,9 +8,11 @@ import pytest
 from tests.conftest import CasaPrado
 
 from brain.evals.permissions import load_suite
+from brain.identity.people import load_people
 from brain.redteam.runner import Runner, ScenarioResult
 from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business
+from brain.sim.generate import storyline_events
 
 RunScenarios = Callable[..., dict[str, ScenarioResult]]
 
@@ -28,12 +30,18 @@ def run_scenarios(casa_prado: CasaPrado, tmp_path: Path) -> Iterator[RunScenario
             casa_prado.config / "evals" / "permissions.yaml", casa_prado.items, people
         )
         scenarios = {s.id: s for s in load_scenarios(redteam, people)}
+        story = storyline_events(
+            opened.business,
+            casa_prado.items,
+            load_people(casa_prado.config / "people.yaml"),
+            casa_prado.config / "sim",
+        )
         runners: dict[ModelMode, Runner] = {}
 
         def run(*ids: str, mode: ModelMode = ModelMode.ECHO) -> dict[str, ScenarioResult]:
             if mode not in runners:
                 runners[mode] = Runner(
-                    opened, casa_prado.items, oracle, load_decoys(redteam), mode, None, stack
+                    opened, casa_prado.items, oracle, load_decoys(redteam), mode, None, stack, story
                 )
             return {sid: runners[mode].run(scenarios[sid]) for sid in ids}
 

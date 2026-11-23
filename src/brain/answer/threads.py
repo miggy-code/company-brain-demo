@@ -1,10 +1,10 @@
 """Minimal threads, so a question can follow up on earlier turns.
 
 A turn keeps what is needed to decide whether it may be carried: the chunk ids its answer
-cited and who heard it (its asker and audience). History filter (G8): a follow-up carries an
-earlier turn only if
+showed (cited, or named by a version note) and who heard it (its asker and audience).
+History filter (G8): a follow-up carries an earlier turn only if
 
-- every chunk that turn cited is within the current audience's ceiling, so a follow-up by
+- every chunk that turn showed is within the current audience's ceiling, so a follow-up by
   someone else (or in front of someone else) cannot inherit what they could not have read;
 - and every current audience member, the asker included, heard that turn. The question
   text was typed by its asker and can name things only they may see (a figure, a person),
@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 class Turn:
     question: str
     answer: str
+    # Chunks the answer cited, and the chunks of versions its note named.
     cited: tuple[str, ...]
     # Everyone who heard the turn: its asker first, then the rest of its audience.
     audience: tuple[str, ...]

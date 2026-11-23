@@ -2,7 +2,9 @@
 
 The world is agentgate's own (`open_world`): its store and the Panoptes audit log under
 data/<business>/, a policy bundle copied from businesses/<id>/policy/, and fixtures written
-from people.yaml (one agentgate user per person, no documents: items live in Postgres).
+from the persons table (one agentgate user per active person, no documents: items live in
+Postgres). A person no longer active is left out of the fixtures, and agentgate's fixture
+sync suspends a user the fixtures no longer list; `sync_people` applies that at once.
 
 Two decisions come from agentgate's PolicyEngine:
 - Narrowing (search): which (label, tags) the asker's role may read with docs.search,
@@ -19,10 +21,11 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from agentgate.fixtures import sync_fixtures
 from agentgate.models import Action, Role, User, UserStatus
 from agentgate.policy.engine import Decision, DocumentFacts, Request
 from agentgate.policy.schema import Effect
-from agentgate.world import OpenRecord, World, open_world
+from agentgate.world import OpenRecord, World, open_world, record_fixture_sync
 
 from brain.identity.people import Directory
 from brain.search.filters import facts_key
@@ -78,13 +81,34 @@ def prepare_world(business: Business, directory: Directory, paths: BusinessPaths
         "domains": list(business.domains),
         "timezone": business.timezone,
     }
+    (fixture_target / "customer.yaml").write_text(yaml.safe_dump(customer, sort_keys=False))
+    _write_users(fixture_target, directory)
+    return world
+
+
+def _write_users(fixture_target: Path, directory: Directory) -> None:
     users = [
         {"id": p.id, "name": p.name, "email": p.email, "role": p.role.value, "status": "active"}
         for p in directory
     ]
-    (fixture_target / "customer.yaml").write_text(yaml.safe_dump(customer, sort_keys=False))
     (fixture_target / "users.yaml").write_text(yaml.safe_dump(users, sort_keys=False))
-    return world
+
+
+def sync_people(world: World, business_id: str, directory: Directory) -> None:
+    """Bring agentgate's users in line with `directory` now: a new person is added, and a
+    person no longer in it is suspended (agentgate's fixture sync), recorded on the chain as
+    a fixture_sync event with no actor (the source changed, not an operator).
+
+    Temporary workaround named by spec 04: agentgate has no API to provision or suspend a
+    customer's users from a connected directory, so the brain writes agentgate's fixture
+    file and runs its fixture sync. Operator suspension does not fit: it needs an acting
+    owner, is sticky, and an owner cannot suspend themselves. Removed by upstream unit U7
+    (directory sync API in agentgate)."""
+    if world.fixtures is None:
+        raise GateError("the business world has no fixtures folder")
+    _write_users(world.fixtures / business_id, directory)
+    synced = sync_fixtures(world.store, world.fixtures)
+    record_fixture_sync(world.store, world.gate, synced, actor=None)
 
 
 def open_business_world(paths: WorldPaths) -> World:

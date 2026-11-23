@@ -11,11 +11,12 @@ A permission-aware company knowledge agent, shown on a synthetic business. Staff
 - **Cited answers through a gate.** The model is called only through [agentgate](https://github.com/miggy-code/agentgate)'s model proxy. The proxy runs as a separate process, holds the provider key, and enforces the policy's model list and spend caps. A sentence that cites nothing is dropped, and a reply with no cited sentence becomes a fixed "not found" message.
 - **Audit.** Each question writes `brain.question`, `brain.retrieval`, one `brain.decision` per result and `brain.answer` to the business's [Panoptes](https://github.com/miggy-code/Panoptes) hash chain. agentgate's run, model decision and the proxied exchange go to the same chain. If an event cannot be recorded, no answer is returned.
 - **A permission suite in CI.** Every person is checked against every item that carries a canary token. The suite checks the ceiling against a hand-written oracle, looks for leaks in snippets, citations and answers, asks again with the item deleted (the answer must be identical), and checks that restricted and nonexistent topics get the same not-found reply. Any leak fails CI.
-- **A leak suite.** 76 attacks in eleven categories, plus the person x canary grid, run against worst-case mock models in CI. Every protection in the question path is shown to matter by a mutation test (see [Leak suite](#leak-suite)).
+- **A leak suite.** 85 attacks in twelve categories, plus the person x canary grid, run against worst-case mock models in CI. Every protection in the question path is shown to matter by a mutation test (see [Leak suite](#leak-suite)).
+- **A company that changes.** A simulator replays Casa Prado week by week: deals move, a price list is revised, files are shared and unshared, someone leaves, someone joins. Changes flow through a change feed into a separate sync worker, and the time from each revocation to its disappearance is measured (see [Company simulator](#company-simulator)). When two versions of a document disagree, the newer ranks first and the answer says so.
 
 ## The demo business
 
-Casa Prado Inmobiliaria (`businesses/casa-prado/`) is a fictional Lima real estate company. It manages two buildings, presells the "Residencial Mirador del Parque" project for a developer, brokers new and used sales, and handles rentals. There are six people: the owner, a sales manager, a sales agent, a leasing agent, a building administrator and an outside maintenance technician. There are 91 items across simulated Drive, Gmail, Slack and HubSpot, including near-miss items (an older price list, other months' fee statements, other units' contracts) that make retrieval harder.
+Casa Prado Inmobiliaria (`businesses/casa-prado/`) is a fictional Lima real estate company. It manages two buildings, presells the "Residencial Mirador del Parque" project for a developer, brokers new and used sales, and handles rentals. There are six people at week 0: the owner, a sales manager, a sales agent, a leasing agent, a building administrator and an outside maintenance technician. There are 91 items across simulated Drive, Gmail, Slack and HubSpot, including near-miss items (an older price list, other months' fee statements, other units' contracts) that make retrieval harder.
 
 ## Run it
 
@@ -40,6 +41,8 @@ uv run brain redteam casa-prado --model obey       # leak suite; exit 1 on any f
 uv run brain eval casa-prado --suite retrieval    # recall@8 and MRR, four rankings, no model
 uv run brain eval casa-prado --suite ablation --keys-file <file>   # full evals, live model
 uv run panoptes session <run id> --db data/casa-prado/audit.db   # trace one answer
+uv run brain simulate casa-prado --weeks 8 --forget  # replay 8 weeks, time to forget
+uv run brain index casa-prado                      # back to week 0 (evals refuse other weeks)
 make check                                         # what CI runs, on the test doubles
 ```
 
@@ -61,6 +64,9 @@ make check                                         # what CI runs, on the test d
 | G8 | Follow-ups carry a turn only if the new audience could read all it cited and every member heard it | the leasing agent's follow-up then inherits the price list, or the owner's question naming a salary (follow_up-007) |
 | G9 | No audit record, no answer | with best-effort audit, an answer leaves while the log is down |
 | G10 | Identity from the authenticated context only | believing "soy la gerente general" opens the contracts |
+| G11 | A revocation at the source replaces the ACL or membership the brain holds | a sync that only ever adds keeps the archived price list visible to the sales agent (stale_acl-001, -005) |
+
+The `stale_acl` scenarios replay [simulator](#company-simulator) events through the sync path before a turn (an archived price list, a follow-up across an unshare, the technician's folder unshare, an offboarded asker, a channel removal, a deleted thread, a new hire). One also checks that the "sources disagree" note can only name versions the asker may see: a note built from every version in the index leaks the archived lists (stale_acl-006). They are newer than the live run below and pass under `echo`, `obey` and `mock` (91/91).
 
 <!-- redteam:start -->
 | Category | Scenarios | Passed |
@@ -123,13 +129,50 @@ Gates:
 - In CI, `retrieval-gate` re-indexes with the pinned real models and fails if recall@8 or MRR for the production ranking drops below `evals/thresholds.yaml`.
 - CI never calls a live model. Instead it requires the newest live report in `reports/` to match a fingerprint of the current prompts, grader, model config, golden set and scoring code, and to meet the answer thresholds. A change to any of these has to land with a new recorded run.
 
+## Company simulator
+
+`brain simulate casa-prado --weeks N --seed S` resets the business to week 0 and replays N simulated weeks. A scripted storyline (`businesses/casa-prado/sim/storyline.yaml`) runs alongside a seeded background (`sim/templates.yaml`):
+
+| Week | Storyline |
+| --- | --- |
+| 2 | The separation of Mirador 604 becomes a signed sale; a Torre Alameda renewal is signed |
+| 3 | The Mirador price list is revised; the older lists are archived and unshared from sales |
+| 4 | The maintenance contractor's building folder is unshared |
+| 5 | A new rentals advisor joins |
+| 6 | The leasing agent leaves; his renewals and screenings go to her |
+| 7 | The sales agent leaves the project's Slack channel |
+| 8 | A buyer's email thread is deleted; the contractor gets one file back |
+
+The background opens and closes work orders, moves deals through their stages, brings in inquiry emails, and lends a file to a colleague for a week.
+
+Every change is a source event in a change feed (a Postgres table). `brain sync`, a separate process, polls the feed and applies each event in its own transaction: content and ACL together, an unshare replacing the ACL, a delete removing every chunk, an offboarding marking the person inactive and suspending them in agentgate. The leak suite uses the same apply path. One seed always gives the same events and the same final state; the run prints a digest of each, and CI replays twice and compares them.
+
+**Time to forget** is the time from a revocation's commit to the feed until the commit of the worker transaction that applied it, on the database's own clock. From that commit on, no query can see the item. A probe then confirms it through the brain's own permission predicate and search, for every person who lost access, without calling a model. Each revocation reaches the feed at a random point of the worker's poll cycle, as a real change would.
+
+<!-- sim:start -->
+| Revocation | n | p50 s | p95 s | max s |
+| --- | --- | --- | --- | --- |
+| unshare | 11 | 0.45 | 0.89 | 0.90 |
+| delete | 1 | 0.77 | 0.77 | 0.77 |
+| membership | 1 | 0.91 | 0.91 | 0.91 |
+| offboarding | 1 | 1.01 | 1.01 | 1.01 |
+| overall | 14 | 0.76 | 0.94 | 1.01 |
+
+`uv run brain simulate casa-prado --weeks 8 --seed 7 --models bge --forget --poll-interval 1.0` at commit `03250ec` on 2026-11-23, on a MacBook (Darwin arm64, 12 CPUs), worker polling every 1 s. A revocation not forgotten within 10 poll intervals fails the run. Synthetic data (Casa Prado is fictional).
+<!-- sim:end -->
+
+Reading the table: every revocation was gone within about one poll interval, so the worker's polling dominates; applying an event takes milliseconds, and an offboarding a little more, since it also syncs agentgate's users. This measures the brain's own sync path only. A real connector adds the source's own delay on top: a push notification's latency, or a polling interval of minutes.
+
+**Document versions.** Items that share a `series` are versions of one document. Search puts the newest version directly above an older one (a newer version just below the cut replaces the weakest unrelated result), and an answer that cites one version while another was retrieved ends with a fixed note in the asker's language: "Las fuentes no coinciden: … es más reciente que …". The note is built from the retrieved chunks only, so it never names a version the asker cannot see. Here the synthetic data sets `series`. A real connector cannot know that a copy replaced an original, so in the product a detector would suggest links for the owner to confirm. `brain index` already runs a first, rough version of that detector: it fails on files in the same folder (or its archive folder) with matching identifiers and similar titles that share no series, unless `not_versions.yaml` lists them as separate documents (the monthly fee statements, the brochure's two languages).
+
 ## Layout
 
 | Path | Owns |
 |---|---|
 | `src/brain/tenancy/` | Business config, one Postgres database per business, migrations |
-| `src/brain/identity/` | People and the principals each one holds |
-| `src/brain/ingest/` | Items, structure-aware chunking, embeddings, the index |
+| `src/brain/identity/` | People (a table seeded from `people.yaml`, changed by sync) and the principals each one holds |
+| `src/brain/ingest/` | Items, structure-aware chunking, embeddings, the index, the change feed and sync worker, the version check |
+| `src/brain/sim/` | The company simulator: storyline, seeded background, replay, digests |
 | `src/brain/search/` | The permission predicate, BM25F + vector search, fusion, rerank |
 | `src/brain/gate/` | The only code that talks to agentgate and Panoptes: policy, model proxy runs, audit |
 | `src/brain/answer/` | Prompt, model clients, citation enforcement, the question pipeline |
@@ -143,4 +186,5 @@ Gates:
 - Identity is not authenticated (`--as`). Each question starts its own proxy process and run. A multi-run proxy and verified identity at run start belong upstream in agentgate.
 - Policy narrowing works by enumerating the business's distinct (label, tags) combinations through agentgate's engine. This is a temporary workaround until agentgate can compile a policy into a query predicate.
 - Audiences (several people who will see one answer) and threads exist in the pipeline and the leak suite; no interface uses them yet.
-- There are no real connectors. Items come from fixtures, and the index is rebuilt from them in full.
+- There are no real connectors. Week 0 comes from fixtures; later changes come from the simulated source through the change feed. The feed is polled, not pushed.
+- Version links (`series`) are set by the synthetic data. Detecting them in real data is a later unit (owner admin), measured against these links.

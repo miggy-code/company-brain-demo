@@ -3,7 +3,8 @@
 1. The audience's principals (identity) and agentgate's narrowing for every member's role
    (gate). The asker is always in the audience; identity comes only from the people passed
    in (resolved by the interface from its authenticated context), never from the question
-   text (G10).
+   text (G10). Each member is looked up again in the persons table for this question, so a
+   membership change or an offboarding applies from the next question on.
 2. `brain.question` recorded.
 3. Hybrid search with ACL + policy in every index query (search): an item is usable only if
    every audience member's principals meet its ACL and every member's policy allows it (G7).
@@ -13,7 +14,7 @@
 5. Earlier turns of the thread, filtered so a turn is carried only if every chunk it cited
    is within the audience's ceiling and every audience member heard it (G8).
 6. The model, through the proxy, over the kept chunks and carried turns only; citations
-   enforced (G5).
+   enforced (G5). A note names the versions of a cited document among the kept chunks.
 7. `brain.answer` recorded. Only then is the answer returned (G9).
 """
 
@@ -24,12 +25,19 @@ import psycopg
 from agentgate.models import User
 from agentgate.policy.schema import Effect
 
-from brain.answer.compose import Answer, Prompt, build_prompt, compose, parse_reply
+from brain.answer.compose import (
+    Answer,
+    Prompt,
+    build_prompt,
+    compose,
+    parse_reply,
+    with_disagreements,
+)
 from brain.answer.models import AnswerModel
 from brain.answer.threads import Thread, Turn, carried_turns
 from brain.gate.audit import AuditTrail
-from brain.gate.policy import BusinessPolicy, InvariantError, distinct_facts
-from brain.identity.people import Directory, Person
+from brain.gate.policy import BusinessPolicy, GateError, InvariantError, distinct_facts
+from brain.identity.people import Person, read_directory
 from brain.search.filters import PolicyFilter, acl_visible
 from brain.search.query import Hit, Searcher
 from brain.tenancy.config import Business
@@ -68,7 +76,6 @@ class Brain:
     def __init__(
         self,
         business: Business,
-        directory: Directory,
         conn: psycopg.Connection,
         searcher: Searcher,
         policy: BusinessPolicy,
@@ -76,7 +83,6 @@ class Brain:
         audit: AuditTrail,
     ) -> None:
         self._business = business
-        self._directory = directory
         self._conn = conn
         self._searcher = searcher
         self._policy = policy
@@ -95,9 +101,15 @@ class Brain:
         audience: Sequence[Person] = (),
         thread: Thread | None = None,
     ) -> Asked:
-        members = [asker, *(p for p in audience if p.id != asker.id)]
+        directory = read_directory(self._business, self._conn)
+        members = []
+        for given in [asker, *(p for p in audience if p.id != asker.id)]:
+            current = directory.by_id(given.id)
+            if current is None:
+                raise GateError("unknown asker")
+            members.append(current)
         users = [self._policy.active_user(p.id) for p in members]
-        principal_sets = [self._directory.principals_for(p) for p in members]
+        principal_sets = [directory.principals_for(p) for p in members]
         policy = self.policy_filter(*members)
         question_event = self._audit.question(question, principal_sets)
 
@@ -124,10 +136,10 @@ class Brain:
         )
         reached = bool(result.hits)
         raw = self._model.generate(prompt, question_event) if reached else None
-        answer = compose(parse_reply(raw), prompt, question)
+        answer = with_disagreements(compose(parse_reply(raw), prompt, question), result.hits)
         self._audit.answer(answer.cited, answer.not_found, answer.language)
         if thread is not None:
-            thread.turns.append(Turn(question, answer.text(), answer.cited, audience_ids))
+            thread.turns.append(Turn(question, answer.text(), answer.shown_chunks, audience_ids))
         return Asked(
             question=question,
             asker=asker,

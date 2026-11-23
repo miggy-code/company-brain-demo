@@ -12,7 +12,7 @@ fusion without the reranker. Every ranking runs the same permission predicate; a
 changes the order of what is permitted, never what is permitted.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
@@ -61,6 +61,8 @@ class Hit:
     acl: tuple[str, ...]
     location: str
     text: str
+    # Items with the same series are versions of one document.
+    series: str | None
     keyword_rank: int | None
     vector_rank: int | None
     fused: float
@@ -126,7 +128,7 @@ SELECT count(*) FROM chunks c JOIN items i ON i.id = c.item_id WHERE {permission
 
 _HITS = """
 SELECT c.id, c.item_id, i.title, i.source, i.kind, i.location, i.updated, i.label, i.tags,
-       i.acl_principals, c.location, c.body
+       i.acl_principals, c.location, c.body, i.series
 FROM chunks c JOIN items i ON i.id = c.item_id
 WHERE c.id = ANY(%(ids)s::text[]) AND {permission}
 """
@@ -157,6 +159,10 @@ class Searcher:
     @property
     def ranking(self) -> Ranking:
         return self._ranking
+
+    def on(self, conn: psycopg.Connection) -> "Searcher":
+        """The same index and ranking, read through another connection."""
+        return Searcher(conn, self._embedder, self._reranker, self._ranking)
 
     def ranked(self, ranking: Ranking) -> "Searcher":
         """The same index searched with another ranking (an eval ablation)."""
@@ -197,6 +203,11 @@ class Searcher:
             )
         else:
             ranked = [(candidate, 0.0) for candidate in candidates]
+        # Before the cut, so a newer version just below the top k joins the older one. Only
+        # with the reranker is there anything below the cut: the other rankings pool k.
+        ranked = newer_versions_first(
+            ranked, lambda entry: (entry[0][0][1], entry[0][0][12], entry[0][0][6]), k
+        )
         hits = tuple(
             Hit(
                 chunk_id=row[0],
@@ -211,6 +222,7 @@ class Searcher:
                 acl=tuple(row[9]),
                 location=row[10],
                 text=row[11],
+                series=row[12],
                 keyword_rank=keyword_rank.get(row[0]),
                 vector_rank=vector_rank.get(row[0]),
                 fused=fused_score,
@@ -264,6 +276,56 @@ class Searcher:
     def _rows(self, permission: sql.Composable, ids: Sequence[str]) -> dict[str, tuple[Any, ...]]:
         cur = self._conn.execute(sql.SQL(_HITS).format(permission=permission), {"ids": list(ids)})
         return {str(row[0]): row for row in cur.fetchall()}
+
+
+def newer_versions_first[T](
+    ranked: Sequence[T], version: Callable[[T], tuple[str, str | None, date]], k: int
+) -> list[T]:
+    """Recency within a series only, on a ranking about to be cut to `k`.
+
+    1. If the top k hold a version of a document whose newest version is ranked below the
+       cut, that version's best entry takes the place of the lowest-ranked top-k entry that
+       belongs to no series (which drops to just below the cut). The older version stays.
+    2. Within the top k, for each series with two or more versions, the newest version's
+       best entry goes directly above the best entry of any older version that outranks it;
+       with three or more versions, the newest first, then the next.
+
+    Nothing else moves. `version(entry)` is (item id, series, updated)."""
+    top, rest = list(ranked[:k]), list(ranked[k:])
+    for series in sorted({s for _, s, _ in map(version, top) if s is not None}):
+        kept = {version(e)[0]: version(e)[2] for e in top if version(e)[1] == series}
+        below = [e for e in rest if version(e)[1] == series]
+        newest = max(below, key=lambda e: (version(e)[2], version(e)[0]), default=None)
+        if newest is None or version(newest)[2] <= max(kept.values()):
+            continue
+        free = [n for n, e in enumerate(top) if version(e)[1] is None]
+        if not free:
+            continue
+        rest.remove(newest)
+        rest.insert(0, top.pop(free[-1]))
+        top.append(newest)
+    return _newest_above_older(top, version) + rest
+
+
+def _newest_above_older[T](
+    entries: list[T], version: Callable[[T], tuple[str, str | None, date]]
+) -> list[T]:
+    out = list(entries)
+    dates: dict[str, dict[str, date]] = {}
+    for entry in out:
+        item_id, series, updated = version(entry)
+        if series is not None:
+            dates.setdefault(series, {})[item_id] = updated
+    for series in sorted(dates):
+        versions = sorted(dates[series], key=lambda i: (dates[series][i], i), reverse=True)
+        for n, newer in enumerate(versions[:-1]):
+            older = set(versions[n + 1 :])
+            ids = [version(entry)[0] for entry in out]
+            at_newer = ids.index(newer)
+            at_older = next(i for i, item_id in enumerate(ids) if item_id in older)
+            if at_older < at_newer:
+                out.insert(at_older, out.pop(at_newer))
+    return out
 
 
 def _rrf(*rankings: Sequence[str]) -> list[tuple[str, float]]:

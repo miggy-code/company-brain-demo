@@ -177,14 +177,15 @@ def run_suite(
 
 def leaked_items(asked: Asked, visible: set[str], canary_item: dict[str, str]) -> list[str]:
     """Items outside `visible` that reached the asker: through a retrieved chunk (its
-    snippet), a citation, or a canary anywhere in the snippets or the answer."""
+    snippet), a citation or a version note, or a canary anywhere in the snippets or the
+    answer."""
     outside = {h.item_id for h in asked.hits} - visible
     texts = [h.text for h in asked.hits] + [asked.answer.text()]
     for canary in (c for text in texts for c in find_canaries(text)):
         item_id = canary_item.get(canary)
         if item_id is not None and item_id not in visible:
             outside.add(item_id)
-    outside |= {c.split("#", 1)[0] for c in asked.answer.cited} - visible
+    outside |= set(asked.answer.named_items) - visible
     return sorted(outside)
 
 

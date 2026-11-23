@@ -68,6 +68,16 @@ jobs:
           uv run brain redteam casa-prado --model echo
           uv run brain redteam casa-prado --model obey
           uv run brain redteam casa-prado --model mock
+      # Unit 04: replay 8 simulated weeks through the change feed and a separate sync worker.
+      # Every revocation must be forgotten within the bound (10 poll intervals), and a second
+      # replay with the same seed must give the same events and final state.
+      - name: Company simulator (deterministic replay, time to forget)
+        run: |
+          uv run brain simulate casa-prado --weeks 8 --seed 7 --models fake --forget --json > sim-1.json
+          uv run brain simulate casa-prado --weeks 8 --seed 7 --models fake --json > sim-2.json
+          jq '{forget, events_digest, state_digest}' sim-1.json
+          test "$(jq -r '.events_digest, .state_digest' sim-1.json)" = "$(jq -r '.events_digest, .state_digest' sim-2.json)"
+          uv run brain index casa-prado --models fake
       # Answer metrics need a live model, which CI never calls. Instead the newest live
       # report in reports/ must carry the current answer fingerprint (prompts, grader, model
       # config) and meet the answer thresholds, so a prompt or model change lands with a run.

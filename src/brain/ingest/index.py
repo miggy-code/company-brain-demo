@@ -1,8 +1,9 @@
 """Write items, chunks, keyword postings and embeddings into a business database.
 
 Each item is written with its ACL in the same transaction as its content, so an item is
-never searchable without its ACL. This unit rebuilds the whole index from fixtures each
-time; incremental sync arrives with the simulator and connectors.
+never searchable without its ACL. `rebuild_index` resets the business to week 0: the item
+fixtures, the people from people.yaml, an empty change feed. Changes after that arrive
+through `ingest.sync`, which writes with `insert_items` too.
 """
 
 from collections import Counter
@@ -11,6 +12,7 @@ from dataclasses import dataclass
 
 import psycopg
 
+from brain.identity.people import Person, seed_persons
 from brain.ingest.embedding import Embedder
 from brain.ingest.items import Item, chunk_item
 from brain.search.filters import facts_key
@@ -28,16 +30,27 @@ class IndexSummary:
 
 
 def rebuild_index(
-    conn: psycopg.Connection, items: Sequence[Item], embedder: Embedder, reranker: Reranker
+    conn: psycopg.Connection,
+    items: Sequence[Item],
+    people: Sequence[Person],
+    embedder: Embedder,
+    reranker: Reranker,
 ) -> IndexSummary:
-    """Replace the index with `items`, in one transaction."""
+    """Reset the business to week 0 in one transaction: `items` indexed, `people` active,
+    the change feed empty."""
     with conn.transaction():
-        conn.execute("TRUNCATE items, chunks, postings, index_meta")
+        conn.execute("TRUNCATE items, chunks, postings, index_meta, source_events")
+        seed_persons(conn, people)
         chunks, postings = insert_items(conn, items, embedder)
         with conn.cursor() as cur:
             cur.executemany(
                 "INSERT INTO index_meta (key, value) VALUES (%s, %s)",
-                [("embedder", embedder.name), ("reranker", reranker.name)],
+                [
+                    ("embedder", embedder.name),
+                    ("reranker", reranker.name),
+                    ("sim_week", "0"),
+                    ("sim_seed", ""),
+                ],
             )
     return IndexSummary(len(items), chunks, postings, embedder.name, reranker.name)
 
@@ -57,7 +70,8 @@ def insert_items(
     for item, chunks in chunked:
         conn.execute(
             "INSERT INTO items (id, source, kind, title, location, updated, label, tags,"
-            " facts_key, acl_principals) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            " facts_key, acl_principals, series)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 item.id,
                 item.source,
@@ -69,6 +83,7 @@ def insert_items(
                 sorted(item.tags),
                 facts_key(item.label, item.tags),
                 sorted(item.acl),
+                item.series,
             ),
         )
         title_terms = Counter(tokenize(item.title))
@@ -108,3 +123,19 @@ def index_models(conn: psycopg.Connection) -> tuple[str, str]:
     if "embedder" not in rows or "reranker" not in rows:
         raise LookupError("the business has no index yet: run `brain index` first")
     return rows["embedder"], rows["reranker"]
+
+
+def sim_state(conn: psycopg.Connection) -> tuple[int, str]:
+    """(simulated week, seed) the business database is at; week 0 is the fixtures."""
+    rows = {str(k): str(v) for k, v in conn.execute("SELECT key, value FROM index_meta")}
+    return int(rows.get("sim_week", "0")), rows.get("sim_seed", "")
+
+
+def require_week_zero(conn: psycopg.Connection) -> None:
+    """Evals and the leak suite measure the fixtures, never a simulated week."""
+    week, seed = sim_state(conn)
+    if week != 0:
+        raise LookupError(
+            f"the database is at simulated week {week} (seed {seed}); run `brain index` to"
+            " return it to week 0 first"
+        )

@@ -1,0 +1,84 @@
+# Seeded background for the simulator (unit 04): the routine around the storyline. Synthetic.
+# Each week the generator draws, with random.Random(seed):
+#   - one work order opened in a building (and earlier ones closed),
+#   - a stage move on one open deal,
+#   - one or two inquiry emails,
+#   - with probability temporary_shares.chance, a file shared with one colleague for a week,
+#     then unshared (a revocation the time-to-forget probe measures).
+# Placeholders in {braces} are filled from the lists below.
+
+work_orders:
+  first_number: 500
+  # The work order's ACL is the building log's ACL at that moment (folder sharing).
+  buildings:
+    - key: alameda
+      name: Torre Alameda
+      folder: Drive / Edificios / Torre Alameda / Órdenes de trabajo
+      acl_from: cp-drive-maintenance-log-alameda
+      tags: [work-order, buildings, alameda]
+    - key: cedros
+      name: Los Cedros
+      folder: Drive / Edificios / Los Cedros / Órdenes de trabajo
+      acl_from: cp-drive-maintenance-log-cedros
+      tags: [work-order, buildings, cedros]
+  problems:
+    - ["filtración en el techo del piso {floor}", revisar impermeabilización y bajada pluvial]
+    - ["tablero eléctrico del piso {floor}", llave térmica que salta con carga]
+    - [cerradura de la puerta de servicio, cambio de cilindro]
+    - ["luminarias del pasillo del piso {floor}", reemplazo por LED]
+    - ["intercomunicador del departamento {floor}0{unit}", sin audio]
+    - ["sensor de humo del piso {floor}", prueba y cambio de batería]
+  close_after_weeks: [1, 2]
+
+deals:
+  # Open deals and the stage each moves to next. A deal at its last stage stays there.
+  stages: [Calificación, Visita, Negociación, Separación, Minuta firmada, Cerrado ganado]
+  items:
+    - cp-hubspot-deal-gardenias
+    - cp-hubspot-deal-sauces
+    - cp-hubspot-deal-mirador-502
+
+inquiries:
+  templates:
+    - inbox: ventas
+      location: Gmail / ventas@casaprado.example
+      acl: [group:ventas@casaprado.example]
+      tags: [inquiry, presales, mirador]
+      language: es
+      subject: Consulta por departamento de {bedrooms} dormitorios en Mirador
+      text: >-
+        Hola, vi el aviso de Mirador del Parque. ¿Tienen departamentos de {bedrooms}
+        dormitorios disponibles y cuál es la cuota inicial? Mi presupuesto es de USD {budget}.
+    - inbox: ventas
+      location: Gmail / ventas@casaprado.example
+      acl: [group:ventas@casaprado.example]
+      tags: [inquiry, presales, mirador]
+      language: en
+      subject: Question about a {bedrooms}-bedroom unit at Mirador
+      text: >-
+        Hello, I am relocating to Lima and saw Mirador del Parque. Is a {bedrooms}-bedroom unit
+        still available, and do you accept foreign buyers? My budget is around USD {budget}.
+    - inbox: alquileres
+      location: Gmail / alquileres@casaprado.example
+      acl: [group:alquileres@casaprado.example]
+      tags: [inquiry, rentals]
+      language: es
+      subject: Consulta por alquiler de {bedrooms} dormitorios
+      text: >-
+        Buenas tardes, busco un departamento de {bedrooms} dormitorios en alquiler desde enero.
+        ¿Tienen algo en Los Cedros o Torre Alameda hasta PEN {rent} al mes?
+
+  names: [Mariana Ortiz, Kenji Tanaka, Rosa Elvira Chávez, Daniel Brooks, Paola Gutiérrez,
+    Óscar Linares, Emily Carter, Luis Alberto Ramos]
+  budgets: ["160,000", "185,000", "210,000", "250,000"]
+  rents: ["2,800", "3,200", "3,600"]
+
+temporary_shares:
+  chance: 0.5
+  # Files a colleague might be lent for a week (to cover a client meeting, a handover).
+  items:
+    - cp-drive-mirador-launch-plan
+    - cp-drive-rental-portfolio
+    - cp-drive-presupuesto-ascensor-alameda
+    - cp-drive-resale-inventory
+    - cp-drive-junta-cedros-acta
