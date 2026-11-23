@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import Annotated, Literal, Self
 
 from agentgate.fixtures import CANARY_TOKEN_RE
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from brain.tenancy.config import ConfigError, Slug, read_yaml, validate
 
@@ -66,6 +73,11 @@ class Item(_Strict):
     messages: tuple[Message, ...] | None = None
     columns: tuple[str, ...] | None = None
     rows: tuple[tuple[Cell, ...], ...] | None = None
+
+    @field_serializer("tags", "acl")
+    def _sorted(self, value: frozenset[str]) -> list[str]:
+        # Sets serialize in hash order, which changes between processes; events are digested.
+        return sorted(value)
 
     @model_validator(mode="after")
     def _one_shape(self) -> Self:

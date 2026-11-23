@@ -23,7 +23,7 @@ from typing import Annotated, Literal
 
 import psycopg
 from agentgate.world import World
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_serializer
 
 from brain.gate.policy import sync_people
 from brain.identity.people import Person, offboard_person, read_directory, upsert_person
@@ -50,6 +50,10 @@ class ItemAcl(_Event):
     kind: Literal["item_acl"] = "item_acl"
     item_id: Slug
     acl: frozenset[Principal]
+
+    @field_serializer("acl")
+    def _sorted(self, value: frozenset[str]) -> list[str]:
+        return sorted(value)
 
 
 class ItemDelete(_Event):

@@ -25,12 +25,14 @@ def run_worker(
     *,
     should_stop: Callable[[], bool] = lambda: False,
     on_error: Callable[[Exception], None] = lambda exc: None,
-    sleep: Callable[[float], None] = time.sleep,
+    on_ready: Callable[[], None] = lambda: None,
+    sleep: Callable[[float], object] = time.sleep,
 ) -> int:
     """Run until `should_stop()`; the number of events applied. `conn` must be an
     autocommit connection of the worker's own (see `feed`)."""
     if not take_worker_lock(conn):
         raise WorkerBusy("another sync worker is running for this business")
+    on_ready()
     applied = 0
     while not should_stop():
         try:

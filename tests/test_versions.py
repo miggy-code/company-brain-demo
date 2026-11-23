@@ -57,3 +57,10 @@ def test_listed_separate_documents_are_excused() -> None:
     assert len(likely_versions(fees)) == 1
     assert version_problems(fees, []) != []
     assert version_problems(fees, NOT_VERSIONS) == []
+
+
+def test_threads_are_conversations_not_versions() -> None:
+    weekly = [i for i in ITEMS if i.id.startswith("cp-slack-ventas-pipeline")]
+
+    assert len(weekly) == 2
+    assert likely_versions(weekly) == []

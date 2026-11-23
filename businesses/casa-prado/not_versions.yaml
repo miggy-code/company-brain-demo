@@ -7,5 +7,3 @@ groups:
     why: One fee statement per month; a later month does not replace an earlier one.
   - items: [cp-drive-fees-cedros-2026-09, cp-drive-fees-cedros-2026-10]
     why: One fee statement per month; a later month does not replace an earlier one.
-  - items: [cp-slack-ventas-pipeline, cp-slack-ventas-pipeline-oct]
-    why: One pipeline thread per week, each about its own week.

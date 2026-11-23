@@ -6,6 +6,8 @@ synthetic data sets `series`; in the product a detector would suggest links for 
 to confirm. This check is a first, rough version of that detector, run at index time so the
 fixtures and the simulator never leave a likely pair unlinked by mistake.
 
+Only files are checked (documents, sheets, contracts): a thread or a CRM record changes in
+place and is never replaced by a copy, so two threads with one subject are two conversations.
 A pair is likely when the two items are of the same source and kind, sit in the same folder
 (or one in the other's archive folder), carry the same identifiers in their titles (unit,
 work order and other numbers; years aside), have titles whose remaining words overlap by at
@@ -27,6 +29,7 @@ from brain.search.tokens import tokenize
 from brain.tenancy.config import ConfigError, Slug, read_yaml, validate
 
 TITLE_JACCARD = 0.75
+VERSIONED_KINDS = frozenset({"doc", "sheet", "contract"})
 ARCHIVE_FOLDERS = ("Archivo", "Archive")
 _PARENTHETICAL = re.compile(r"\([^)]*\)")
 _YEAR = re.compile(r"^(19|20)\d\d$")
@@ -121,7 +124,8 @@ def load_not_versions(path: Path, item_ids: set[str]) -> list[frozenset[str]]:
 
 def likely_versions(items: Sequence[Item]) -> list[VersionPair]:
     pairs = []
-    for a, b in itertools.combinations(sorted(items, key=lambda i: i.id), 2):
+    files = sorted((i for i in items if i.kind in VERSIONED_KINDS), key=lambda i: i.id)
+    for a, b in itertools.combinations(files, 2):
         if a.source != b.source or a.kind != b.kind or a.columns != b.columns:
             continue
         if not _same_folder(a.location, b.location):

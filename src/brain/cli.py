@@ -5,8 +5,11 @@ operator's provider keys file (JSON, provider name to key, mode 0600), which onl
 agentgate proxy process reads.
 """
 
+import json
+import signal
 import sys
 import tempfile
+import threading
 from collections import Counter
 from collections.abc import Sequence
 from contextlib import ExitStack
@@ -49,7 +52,9 @@ from brain.identity.people import load_directory, load_people
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
 from brain.ingest.index import index_models, rebuild_index, require_week_zero
 from brain.ingest.items import Item, load_items
+from brain.ingest.sync import Applier
 from brain.ingest.versions import load_not_versions, version_problems
+from brain.ingest.worker import WorkerBusy, run_worker
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
 from brain.redteam.report import write_baseline as write_baseline_file
@@ -58,6 +63,8 @@ from brain.redteam.scenarios import load_decoys, load_scenarios
 from brain.runtime import ModelMode, open_business, open_run
 from brain.search.query import PRODUCTION, Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
+from brain.sim.report import format_simulation, sim_json
+from brain.sim.run import SimError, simulate
 from brain.tenancy.config import BusinessPaths, ConfigError, business_paths, load_business
 from brain.tenancy.database import connect, create_database
 
@@ -475,6 +482,86 @@ def redteam(
         write_readme(Path("README.md"), markdown_block(results, label, index, command))
         typer.echo("README.md results table updated")
     if problems or not all(r.passed for r in results):
+        raise typer.Exit(code=1)
+
+
+@app.command("sync")
+def sync(
+    business_id: str,
+    poll_interval: Annotated[
+        float, typer.Option("--poll-interval", min=0.0, help="Seconds between feed polls.")
+    ] = 1.0,
+    businesses_dir: BusinessesDir = Path("businesses"),
+    data_dir: DataDir = Path("data"),
+) -> None:
+    """Run the sync worker: apply the change feed in order until stopped (Ctrl-C, SIGTERM).
+    Prints `ready` once it holds the business's worker lock."""
+    stop = threading.Event()
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(signum, lambda *_: stop.set())
+    try:
+        with (
+            open_business(business_id, businesses_dir, data_dir) as opened,
+            connect(business_id, autocommit=True) as conn,
+        ):
+            applier = Applier(opened.business, opened.world, opened.searcher.embedder)
+            applied = run_worker(
+                conn,
+                applier,
+                poll_interval,
+                should_stop=stop.is_set,
+                sleep=stop.wait,
+                on_error=lambda exc: typer.echo(f"sync: {type(exc).__name__}: {exc}", err=True),
+                on_ready=lambda: typer.echo("ready", nl=True),
+            )
+    except (ConfigError, GateError, LookupError, WorkerBusy) as exc:
+        _fail(str(exc))
+    typer.echo(f"sync stopped after {applied} events", err=True)
+
+
+@app.command("simulate")
+def simulate_command(
+    business_id: str,
+    weeks: Annotated[int, typer.Option("--weeks", min=0)] = 8,
+    seed: Annotated[int, typer.Option("--seed")] = 7,
+    models: Annotated[
+        Models, typer.Option("--models", help="bge: BGE-M3 + reranker; fake: test doubles.")
+    ] = Models.BGE,
+    poll_interval: Annotated[
+        float, typer.Option("--poll-interval", min=0.0, help="The worker's seconds per poll.")
+    ] = 1.0,
+    forget: Annotated[
+        bool, typer.Option("--forget", help="Measure time to forget for every revocation.")
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
+    businesses_dir: BusinessesDir = Path("businesses"),
+    data_dir: DataDir = Path("data"),
+) -> None:
+    """Reset the business to week 0, then replay N simulated weeks through the change feed
+    and a separate sync worker. Leaves the database at week N; `brain index` returns it to
+    week 0. Exit 1 if a revocation is not forgotten within the bound."""
+    embedder: Embedder = BgeM3Embedder() if models is Models.BGE else HashEmbedder()
+    reranker: Reranker = BgeReranker() if models is Models.BGE else IdentityReranker()
+    try:
+        result = simulate(
+            business_id,
+            businesses_dir,
+            data_dir,
+            weeks=weeks,
+            seed=seed,
+            embedder=embedder,
+            reranker=reranker,
+            poll_interval=poll_interval,
+            forget=forget,
+            log=(lambda line: None) if as_json else typer.echo,
+        )
+    except (ConfigError, GateError, LookupError, SimError) as exc:
+        _fail(str(exc))
+    if as_json:
+        typer.echo(json.dumps(sim_json(result), indent=2, ensure_ascii=False))
+    else:
+        typer.echo(format_simulation(result))
+    if result.unforgotten:
         raise typer.Exit(code=1)
 
 

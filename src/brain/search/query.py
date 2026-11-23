@@ -160,6 +160,10 @@ class Searcher:
     def ranking(self) -> Ranking:
         return self._ranking
 
+    def on(self, conn: psycopg.Connection) -> "Searcher":
+        """The same index and ranking, read through another connection."""
+        return Searcher(conn, self._embedder, self._reranker, self._ranking)
+
     def ranked(self, ranking: Ranking) -> "Searcher":
         """The same index searched with another ranking (an eval ablation)."""
         return Searcher(self._conn, self._embedder, self._reranker, ranking)

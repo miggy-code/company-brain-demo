@@ -1,0 +1,238 @@
+# Casa Prado, week by week (unit 04). Synthetic: every person, unit, amount and message is
+# invented. The scripted events below happen at fixed weeks so the leak suite and the persona
+# demo can rely on them; templates.yaml drives the seeded background around them.
+#
+# Week 1 starts on `start` (a Monday); `day` is 0 (Monday) to 4 (Friday). Changes:
+#   new            a new item (updated defaults to the event's date)
+#   patch          an existing item: `set` fields, `add_rows`, `add_messages`
+#   share/unshare  add or remove principals on one item
+#   unshare_folder remove principals from every item in a folder and its subfolders
+#   delete         an item deleted at the source
+#   join           a new person
+#   memberships    a person's groups, channels or teams changed (`set`)
+#   leave          a person offboarded
+# A new item with a restricted ACL and no canary gets one derived from its id.
+
+start: 2026-11-30
+
+events:
+  # --- Week 2: a separation becomes a sale; a renewal is signed -------------------------
+  - ref: sale-604-sheet
+    week: 2
+    day: 1
+    change: patch
+    item: cp-drive-mirador-separations
+    add_rows:
+      - ["604", Gonzalo Ríos, 2026-11-20, "3,000", Minuta firmada, "-"]
+
+  - ref: sale-604-email
+    week: 2
+    day: 1
+    change: new
+    item:
+      id: cp-gmail-ventas-minuta-604
+      source: gmail
+      kind: email-thread
+      title: "Minuta firmada departamento 604 Mirador del Parque"
+      location: Gmail / ventas@casaprado.example
+      label: confidential
+      tags: [sale, presales, mirador]
+      acl: [group:ventas@casaprado.example]
+      messages:
+        - sender: Lucía Quispe <lucia.quispe@casaprado.example>
+          sent: 2026-12-08
+          text: |
+            Equipo: Gonzalo Ríos firmó hoy la minuta del departamento 604 de Mirador del
+            Parque por USD 186,200. La separación de USD 3,000 se aplica a la cuota inicial
+            y el saldo se paga con crédito hipotecario del Banco Andino.
+
+  - ref: sale-604-deal
+    week: 2
+    day: 1
+    change: patch
+    item: cp-hubspot-deal-mirador-604
+    set:
+      body: |
+        Etapa: Cerrado ganado. Propietaria del deal: Lucía Quispe. Monto: USD 186,200 con
+        precio de lanzamiento. Minuta firmada el 8 de diciembre de 2026; la separación de
+        USD 3,000 se aplica a la cuota inicial. Financiamiento: crédito hipotecario aprobado.
+
+  - ref: renewal-1502
+    week: 2
+    day: 3
+    change: new
+    item:
+      id: cp-drive-renewal-alameda-1502
+      source: drive
+      kind: contract
+      title: Adenda de renovación Torre Alameda 1502
+      location: Drive / Alquileres / Contratos
+      label: confidential
+      tags: [contract, rentals, renewal]
+      acl: [group:alquileres@casaprado.example, group:gerencia@casaprado.example]
+      body: |
+        Cláusula primera. Renovación. Se renueva por doce meses, del 1 de enero de 2027 al 31
+        de diciembre de 2027, el arrendamiento del departamento 1502 de Torre Alameda.
+        Cláusula segunda. Nueva renta. La renta mensual sube de PEN 4,100 a PEN 4,350.
+        Cláusula tercera. Garantía. La garantía queda en PEN 8,700, equivalente a dos meses de
+        la nueva renta; el arrendatario completa PEN 500 sobre los PEN 8,200 ya entregados.
+        Cláusula cuarta. Lo demás. Siguen vigentes las demás condiciones del contrato original.
+
+  - ref: renewal-1502-deal
+    week: 2
+    day: 3
+    change: new
+    item:
+      id: cp-hubspot-deal-alameda-1502
+      source: hubspot
+      kind: deal
+      title: "Deal: Renovación Torre Alameda 1502"
+      location: HubSpot / Pipeline Alquileres
+      label: confidential
+      tags: [deal, rentals, renewal]
+      acl: [hubspot-team:3]
+      body: |
+        Etapa: Adenda firmada. Propietario del deal: Martín Huamán.
+        Nueva renta PEN 4,350 desde el 1 de enero de 2027, por doce meses.
+        Comisión de renovación: medio mes de renta, PEN 2,175.
+
+  # --- Week 3: the Mirador price list is revised; old lists archived for gerencia -------
+  - ref: price-list-december
+    week: 3
+    day: 0
+    change: new
+    item:
+      id: cp-drive-mirador-price-list-2026-12
+      source: drive
+      kind: sheet
+      title: Lista de precios Mirador del Parque (diciembre 2026)
+      location: Drive / Ventas / Mirador del Parque
+      label: confidential
+      tags: [price-list, presales, mirador]
+      acl: [group:ventas@casaprado.example, group:gerencia@casaprado.example]
+      series: mirador-price-list
+      columns: [Unidad, Piso, Dormitorios, Área m², Precio lista USD, Estado]
+      rows:
+        - ["201", "2", "1", "52", "151,000", Disponible]
+        - ["305", "3", "2", "74", "176,000", Vendido]
+        - ["502", "5", "2", "78", "189,500", Separado]
+        - ["604", "6", "2", "80", "186,200", Vendido]
+        - ["803", "8", "3", "98", "247,000", Disponible]
+        - ["1501", "15", "3", "120", "322,000", Disponible]
+
+  - ref: price-list-october-archived
+    week: 3
+    day: 0
+    change: patch
+    item: cp-drive-mirador-price-list
+    set:
+      title: Lista de precios Mirador del Parque (octubre 2026, reemplazada)
+      location: Drive / Ventas / Mirador del Parque / Archivo
+
+  - ref: price-list-october-unshared
+    week: 3
+    day: 0
+    change: unshare
+    item: cp-drive-mirador-price-list
+    remove: [group:ventas@casaprado.example]
+
+  - ref: price-list-july-unshared
+    week: 3
+    day: 0
+    change: unshare
+    item: cp-drive-mirador-price-list-v1
+    remove: [group:ventas@casaprado.example]
+
+  # --- Week 4: the contractor's engagement ends ------------------------------------------
+  - ref: jorge-unshared
+    week: 4
+    day: 2
+    change: unshare_folder
+    folder: Drive / Edificios / Torre Alameda
+    remove: [user:jorge.ccori@servitecandino.example]
+
+  # --- Week 5: a new rentals advisor joins -----------------------------------------------
+  - ref: valeria-joins
+    week: 5
+    day: 0
+    change: join
+    person:
+      id: cp-valeria
+      name: Valeria Ríos Castro
+      email: valeria.rios@casaprado.example
+      role: staff
+      title: Asesora de alquileres
+      groups: [alquileres]
+      slack_channels: [general, alquileres]
+      hubspot_teams: [3]
+
+  # --- Week 6: Martín leaves; his renewals and screenings go to Valeria -------------------
+  - ref: martin-leaves
+    week: 6
+    day: 4
+    change: leave
+    person: cp-martin
+
+  - ref: handover-1204
+    week: 6
+    day: 4
+    change: patch
+    item: cp-hubspot-deal-alameda-1204
+    set:
+      body: |
+        Etapa: Adenda firmada. Propietaria del deal: Valeria Ríos (antes Martín Huamán).
+        Nueva renta PEN 3,500 desde el 1 de diciembre de 2026, por doce meses.
+        Comisión de renovación: medio mes de renta, PEN 1,750.
+
+  - ref: handover-1502
+    week: 6
+    day: 4
+    change: patch
+    item: cp-hubspot-deal-alameda-1502
+    set:
+      body: |
+        Etapa: Adenda firmada. Propietaria del deal: Valeria Ríos (antes Martín Huamán).
+        Nueva renta PEN 4,350 desde el 1 de enero de 2027, por doce meses.
+        Comisión de renovación: medio mes de renta, PEN 2,175.
+
+  - ref: screening-handover-0907
+    week: 6
+    day: 4
+    change: share
+    item: cp-drive-screening-alameda-0907
+    add: [user:valeria.rios@casaprado.example]
+  - ref: screening-handover-1204
+    week: 6
+    day: 4
+    change: share
+    item: cp-drive-screening-alameda-1204
+    add: [user:valeria.rios@casaprado.example]
+  - ref: screening-handover-cedros-302
+    week: 6
+    day: 4
+    change: share
+    item: cp-drive-screening-cedros-302
+    add: [user:valeria.rios@casaprado.example]
+
+  # --- Week 7: Lucía hands the Mirador project channel over --------------------------------
+  - ref: lucia-leaves-mirador-channel
+    week: 7
+    day: 1
+    change: memberships
+    person: cp-lucia
+    set:
+      slack_channels: [general, ventas]
+
+  # --- Week 8: a thread deleted at the source; the contractor is re-engaged ----------------
+  - ref: gardenias-offer-deleted
+    week: 8
+    day: 1
+    change: delete
+    item: cp-gmail-gardenias-buyer-offer
+
+  - ref: jorge-reshared
+    week: 8
+    day: 3
+    change: share
+    item: cp-drive-maintenance-log-alameda
+    add: [user:jorge.ccori@servitecandino.example]
