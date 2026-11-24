@@ -56,6 +56,13 @@ jobs:
           uv run brain redteam casa-prado --model echo
           uv run brain redteam casa-prado --model obey
           uv run brain redteam casa-prado --model mock
+      # Unit 05: the same attacks through the MCP server, as an MCP client sees it, plus the
+      # MCP grid (read_item on every item, deals under every filter) for every person.
+      - name: Leak suite over MCP
+        run: |
+          uv run brain redteam casa-prado --via mcp --model echo
+          uv run brain redteam casa-prado --via mcp --model obey
+          uv run brain redteam casa-prado --via mcp --model mock
       # Unit 04: replay 8 simulated weeks through the change feed and a separate sync worker.
       # Every revocation must be forgotten within the bound (10 poll intervals), and a second
       # replay with the same seed must give the same events and final state.

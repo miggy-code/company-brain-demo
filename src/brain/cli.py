@@ -19,6 +19,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
 
+import anyio
 import typer
 import yaml
 
@@ -58,6 +59,7 @@ from brain.ingest.versions import load_not_versions, version_problems
 from brain.ingest.worker import WorkerBusy, run_worker
 from brain.interfaces.mcp.server import build_server
 from brain.interfaces.mcp.tools import DemoCaller, Tools
+from brain.redteam.mcp import McpSuite, reachable
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
 from brain.redteam.report import write_baseline as write_baseline_file
@@ -99,6 +101,11 @@ DEMO_IDENTITY_NOTE = "note: --as is a demo identity; this unit has no login"
 class Models(StrEnum):
     BGE = "bge"
     FAKE = "fake"
+
+
+class Via(StrEnum):
+    DIRECT = "direct"
+    MCP = "mcp"
 
 
 class Suite(StrEnum):
@@ -467,15 +474,22 @@ def redteam(
     only: Annotated[
         list[str] | None, typer.Option("--only", help="Run only these scenario ids.")
     ] = None,
+    via: Annotated[
+        Via, typer.Option("--via", help="direct (in-process) or mcp (as an MCP client).")
+    ] = Via.DIRECT,
     businesses_dir: BusinessesDir = Path("businesses"),
 ) -> None:
     """Run the leak suite: every scenario plus the person x canary grid. Exit 1 on any
-    failure, or on any scenario missing from (or not yet in) the baseline."""
+    failure, or on any scenario missing from (or not yet in) the baseline. With --via mcp,
+    the scenarios one MCP caller can pose, and the MCP grid, through the MCP server."""
     if only and (markdown or write_baseline):
         _fail("--markdown and --write-baseline need the whole suite, not --only")
+    if via is Via.MCP and (markdown or write_baseline):
+        _fail("--markdown and --write-baseline are for the in-process suite")
     paths = business_paths(business_id, businesses_dir, Path("data"))
     redteam_dir = paths.config / "redteam"
     baseline = redteam_dir / "baseline.json"
+    expected_ids: set[str] = set()
     try:
         items = load_items(paths.items_dir)
         with (
@@ -500,14 +514,28 @@ def redteam(
             if model is ModelMode.LIVE:
                 label = f"`{opened.business.model.name}` (live, through the agentgate proxy)"
             index = " + ".join(f"`{name}`" for name in index_models(opened.conn))
-            typer.echo(f"leak suite, model {model.value}, {len(scenarios)} scenarios + grid")
-            results = [runner.run(scenario) for scenario in scenarios]
-            if not only:
-                results += runner.grid()
+            if via is Via.MCP:
+                scenarios = [s for s in scenarios if reachable(s)]
+                typer.echo(
+                    f"leak suite over MCP, model {model.value}, {len(scenarios)} scenarios + grid"
+                )
+                server = stack.enter_context(serve_runs(opened, model, keys_file))
+                suite = McpSuite(opened, items, oracle, load_decoys(redteam_dir), model, server)
+                results = anyio.run(lambda: suite.run(scenarios, grid=not only))
+                expected_ids = {s.id for s in scenarios}
+            else:
+                typer.echo(f"leak suite, model {model.value}, {len(scenarios)} scenarios + grid")
+                results = [runner.run(scenario) for scenario in scenarios]
+                if not only:
+                    results += runner.grid()
     except (ConfigError, GateError, InvariantError, ModelError, LookupError) as exc:
         _fail(str(exc))
     typer.echo(format_table(results))
-    problems = [] if only else baseline_problems(baseline, results)
+    if via is Via.MCP:
+        ran = {r.id for r in results}
+        problems = [f"missing from the run: {sid}" for sid in sorted(expected_ids - ran)]
+    else:
+        problems = [] if only else baseline_problems(baseline, results)
     if write_baseline:
         write_baseline_file(baseline, results)
         problems = []

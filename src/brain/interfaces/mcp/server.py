@@ -44,6 +44,8 @@ def build_server(
     tools: Tools, caller: Callable[[], Caller], *, demo_identity: bool, **settings: Any
 ) -> MCPServer:
     """The MCP server over `tools`. `settings` go to MCPServer (auth for HTTP)."""
+    # The SDK logs every control-socket request at INFO; keep stderr to what matters.
+    settings.setdefault("log_level", "WARNING")
     server = MCPServer(
         "company-brain",
         instructions=_SYNTHETIC + (_DEMO if demo_identity else ""),
