@@ -3,14 +3,16 @@ every run, and each run the brain starts is ended when its block exits."""
 
 import sqlite3
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from agentgate.model_proxy.client import RunStart
 from tests.conftest import CasaPrado
 
-from brain.gate.policy import GateError
-from brain.gate.proxy_server import AccessRefused
+from brain.gate.policy import GateError, InvariantError
+from brain.gate.proxy_server import AccessRefused, ProxyServer
 from brain.runtime import ModelMode, OpenBusiness, make_brain, open_business, serve_runs
 
 SEPARATION_502 = "¿En qué estado está la separación del departamento 502 en Mirador del Parque?"
@@ -114,3 +116,40 @@ def test_every_run_carries_the_servers_caps(opened: OpenBusiness) -> None:
         ).fetchone()
 
     assert (Decimal(caps[0]), caps[1]) == (Decimal("0.25"), 2)
+
+
+class _OtherPerson:
+    """A control socket whose verified run names someone other than the brain verified."""
+
+    def __init__(self) -> None:
+        self.ended: list[str] = []
+
+    def start_verified_run(self, assertion: str, **caps: object) -> RunStart:
+        return RunStart(
+            run_id="run-x",
+            customer_id="casa-prado",
+            user_id="cp-rosa",
+            token="t",
+            expires_at=datetime.now(UTC),
+            max_usd=Decimal("1"),
+            max_calls=1,
+            per_customer_day_usd=Decimal("5"),
+        )
+
+    def end_run(self, run_id: str) -> None:
+        self.ended.append(run_id)
+
+
+def test_a_verified_run_for_another_person_is_ended_unused() -> None:
+    control = _OtherPerson()
+    server = ProxyServer(
+        control=control,  # type: ignore[arg-type]
+        model_url="http://127.0.0.1:1",
+        customer_id="casa-prado",
+        model=None,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(InvariantError), server.verified_run("token", expected_user="cp-lucia"):
+        pytest.fail("the block must not run")
+
+    assert control.ended == ["run-x"]

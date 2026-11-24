@@ -18,10 +18,13 @@ from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlsplit
 
 import anyio
 import typer
+import uvicorn
 import yaml
+from agentgate.identity import IssuerKind
 
 from brain.answer.compose import Answer
 from brain.answer.models import ModelError
@@ -49,6 +52,7 @@ from brain.evals.report import (
     write_report,
 )
 from brain.evals.report import write_readme as write_evals_readme
+from brain.gate.identity import BrainTokenVerifier, IssuerSpec, write_trust_configs
 from brain.gate.policy import GateError, InvariantError, open_business_world, prepare_world
 from brain.identity.people import load_directory, load_people
 from brain.ingest.embedding import BgeM3Embedder, Embedder, HashEmbedder
@@ -57,7 +61,7 @@ from brain.ingest.items import Item, load_items
 from brain.ingest.sync import Applier
 from brain.ingest.versions import load_not_versions, version_problems
 from brain.ingest.worker import WorkerBusy, run_worker
-from brain.interfaces.mcp.server import build_server
+from brain.interfaces.mcp.server import build_http_server, build_server, http_app
 from brain.interfaces.mcp.tools import DemoCaller, Tools
 from brain.redteam.mcp import McpSuite, reachable
 from brain.redteam.report import baseline_problems, format_table, write_readme
@@ -65,7 +69,7 @@ from brain.redteam.report import markdown as markdown_block
 from brain.redteam.report import write_baseline as write_baseline_file
 from brain.redteam.runner import Runner
 from brain.redteam.scenarios import load_decoys, load_scenarios
-from brain.runtime import ModelMode, open_business, open_run, serve_runs
+from brain.runtime import ModelMode, OpenBusiness, open_business, open_run, serve_runs
 from brain.search.query import PRODUCTION, Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
 from brain.sim.generate import storyline_events
@@ -211,19 +215,38 @@ def ask(
 def mcp(
     business_id: str,
     as_email: Annotated[
-        str, typer.Option("--as", help="Email of the person every tool call answers as.")
-    ],
+        str | None,
+        typer.Option("--as", help="stdio: email of the person every call answers as (demo)."),
+    ] = None,
+    http: Annotated[
+        bool, typer.Option("--http", help="Serve Streamable HTTP with OAuth bearer tokens.")
+    ] = False,
+    issuer: Annotated[
+        str | None,
+        typer.Option("--issuer", help="HTTP: the OIDC issuer, exactly as tokens' iss says."),
+    ] = None,
+    resource: Annotated[
+        str, typer.Option("--resource", help="HTTP: this server's URL (a token audience).")
+    ] = "http://127.0.0.1:8765/mcp",
+    host: Annotated[str, typer.Option("--host", help="HTTP: address to bind.")] = "127.0.0.1",
     model: Annotated[ModelMode, typer.Option("--model", help="live or mock.")] = ModelMode.LIVE,
     keys_file: KeysFile = None,
     businesses_dir: BusinessesDir = Path("businesses"),
     data_dir: DataDir = Path("data"),
 ) -> None:
-    """Serve the brain as an MCP server over stdio, as one person (a demo identity).
+    """Serve the brain as an MCP server: search, read_item, deals and ask.
 
-    Tools: search, read_item, deals and ask. Each call is one agentgate run on a long-running
-    model proxy, ended when the call returns. stdout carries the MCP protocol; notes and logs
-    go to stderr."""
-    typer.echo(DEMO_IDENTITY_NOTE, err=True)
+    stdio (--as): every call answers as one person, a demo identity. HTTP (--http --issuer):
+    every request needs an OAuth access token from the issuer, naming this server and
+    agentgate as audiences; the brain verifies it, and agentgate verifies it again before the
+    call's run starts. Each call is one agentgate run on a long-running model proxy, ended
+    when the call returns. Notes and logs go to stderr."""
+    if http == (as_email is not None):
+        _fail("give --as (stdio, demo identity) or --http --issuer, not both or neither")
+    if http and issuer is None:
+        _fail("--http needs --issuer (the OIDC realm URL tokens are issued by)")
+    if not http:
+        typer.echo(DEMO_IDENTITY_NOTE, err=True)
     logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
     # MCP clients often stop a stdio server with SIGTERM. Python's default would exit without
     # unwinding, leaving agentgate's proxy running with the provider key and a control socket;
@@ -231,14 +254,64 @@ def mcp(
     signal.signal(signal.SIGTERM, _exit_on_signal)
     try:
         with open_business(business_id, businesses_dir, data_dir) as opened:
-            person = opened.person(as_email)
-            with serve_runs(
-                opened, model, keys_file, max_usd=ASK_MAX_USD, max_calls=ASK_MAX_CALLS
-            ) as server:
-                caller = DemoCaller(person.id)
-                build_server(Tools(opened, server), lambda: caller, demo_identity=True).run("stdio")
+            if not http:
+                assert as_email is not None
+                person = opened.person(as_email)
+                with serve_runs(
+                    opened, model, keys_file, max_usd=ASK_MAX_USD, max_calls=ASK_MAX_CALLS
+                ) as server:
+                    caller = DemoCaller(person.id)
+                    tools = Tools(opened, server)
+                    build_server(tools, lambda: caller, demo_identity=True).run("stdio")
+                return
+            assert issuer is not None
+            _serve_http(opened, issuer, resource, host, model, keys_file)
     except (ConfigError, GateError, LookupError) as exc:
         _fail(str(exc))
+
+
+def _serve_http(
+    opened: OpenBusiness,
+    issuer: str,
+    resource: str,
+    host: str,
+    model: ModelMode,
+    keys_file: Path | None,
+) -> None:
+    spec = IssuerSpec(
+        name=f"{opened.business.id}-oidc",
+        kind=IssuerKind.OIDC,
+        issuer=issuer,
+        customer=opened.business.id,
+        algorithms=("RS256", "ES256"),
+    )
+    agentgate_config, brain_config = write_trust_configs(
+        opened.paths.data / "identity", spec, resource
+    )
+    verifier = BrainTokenVerifier(brain_config, opened.world, resource)
+    try:
+        problems = {name: why for name, why in verifier.load().items() if why is not None}
+        if problems:
+            raise GateError(f"cannot load the issuer's signing keys: {problems}")
+        with serve_runs(
+            opened,
+            model,
+            keys_file,
+            identity_config=agentgate_config,
+            max_usd=ASK_MAX_USD,
+            max_calls=ASK_MAX_CALLS,
+        ) as server:
+            app = http_app(
+                build_http_server(
+                    Tools(opened, server), verifier, issuer_url=issuer, resource=resource
+                ),
+                resource,
+            )
+            port = urlsplit(resource).port or 80
+            typer.echo(f"MCP over HTTP at {resource} (issuer {issuer})", err=True)
+            uvicorn.run(app, host=host, port=port, log_level="warning")
+    finally:
+        verifier.close()
 
 
 def _exit_on_signal(signum: int, frame: object) -> None:
