@@ -14,3 +14,7 @@ Every account is a synthetic persona of the fictional Casa Prado, and every pass
   address of no one in the business. Both must be refused.
 - Valeria exists in the realm from the start but is a person of the business only from week 5 of
   the simulator; before that she is refused like `stranger`.
+
+**Local only. Never deploy this file.** Its passwords are public, its `brain-mcp-test` client lets
+anyone with them get a token without a browser, and it runs without TLS (`sslRequired: none`). A
+hosted realm (unit 06) needs its own accounts, no direct-grant client, TLS and a public issuer URL.
