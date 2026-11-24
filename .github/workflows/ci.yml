@@ -78,3 +78,51 @@ jobs:
       # config) and meet the answer thresholds, so a prompt or model change lands with a run.
       - name: Answer report check
         run: uv run brain eval casa-prado --check-report
+
+  # Unit 05: the MCP server over HTTP against the real identity provider, Casa Prado's
+  # Keycloak realm (synthetic accounts, local test passwords).
+  keycloak:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: brain
+          POSTGRES_PASSWORD: brain-local-only
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U brain -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      BRAIN_DATABASE_URL: postgresql://brain:brain-local-only@127.0.0.1:55432/postgres
+      BRAIN_KEYCLOAK_URL: http://127.0.0.1:8080
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.27"
+      - name: Install
+        run: uv sync --locked
+      # A job service cannot take a command, so Keycloak starts with docker run.
+      - name: Start Keycloak
+        run: >
+          docker run -d --name keycloak -p 127.0.0.1:8080:8080
+          -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin-local-only
+          -v "$GITHUB_WORKSPACE/businesses/casa-prado/keycloak/realm-casa-prado.json:/opt/keycloak/data/import/realm-casa-prado.json:ro"
+          quay.io/keycloak/keycloak:26.8.2 start-dev --import-realm
+      - name: Wait for Keycloak
+        run: |
+          for _ in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8080/realms/casa-prado/.well-known/openid-configuration > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs keycloak
+          exit 1
+      - name: Keycloak tests
+        run: uv run pytest -m keycloak -v

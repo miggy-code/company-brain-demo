@@ -67,5 +67,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q -m 'not slow'"
-markers = ["slow: loads the real BGE models (about 4.5 GB); run with -m slow"]
+addopts = "-q -m 'not slow and not keycloak'"
+markers = [
+    "slow: loads the real BGE models (about 4.5 GB); run with -m slow",
+    "keycloak: needs Casa Prado's Keycloak realm at BRAIN_KEYCLOAK_URL; run with -m keycloak",
+]
