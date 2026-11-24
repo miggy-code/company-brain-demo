@@ -20,7 +20,7 @@ Casa Prado Inmobiliaria (`businesses/casa-prado/`) is a fictional Lima real esta
 
 ## Run it
 
-Needs Docker, [uv](https://docs.astral.sh/uv/), and an [agentgate](https://github.com/miggy-code/agentgate) checkout next to this repo (`../agentgate`, at or after `399d4ac`). agentgate 0.1.0 is not on PyPI yet.
+Needs Docker and [uv](https://docs.astral.sh/uv/). agentgate (`panoptes-agentgate`) and Panoptes (`panoptes-observe`) install from PyPI with `uv sync`.
 
 ```bash
 docker compose up -d --wait                     # Postgres + pgvector on 127.0.0.1:55432
@@ -184,7 +184,7 @@ Reading the table: every revocation was gone within about one poll interval, so 
 
 ## Limits
 
-- Identity is not authenticated (`--as`). Each question starts its own proxy process and run. A multi-run proxy and verified identity at run start belong upstream in agentgate.
+- Identity is not authenticated (`--as`). Each question starts its own proxy process and run. agentgate 0.3.0 has a multi-run proxy and verified identity at run start; the brain does not use them yet.
 - Policy narrowing works by enumerating the business's distinct (label, tags) combinations through agentgate's engine. This is a temporary workaround until agentgate can compile a policy into a query predicate.
 - Audiences (several people who will see one answer) and threads exist in the pipeline and the leak suite; no interface uses them yet.
 - There are no real connectors. Week 0 comes from fixtures; later changes come from the simulated source through the change feed. The feed is polled, not pushed.

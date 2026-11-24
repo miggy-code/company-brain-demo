@@ -41,18 +41,8 @@ jobs:
     env:
       BRAIN_DATABASE_URL: postgresql://brain:brain-local-only@127.0.0.1:55432/postgres
       HF_HUB_DISABLE_TELEMETRY: "1"
-    defaults:
-      run:
-        working-directory: company-brain-demo
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: company-brain-demo
-      - uses: actions/checkout@v4
-        with:
-          repository: miggy-code/agentgate
-          ref: 54d70232990c7a29da37b1a81a5f69c07e138b42
-          path: agentgate
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.9.27"
