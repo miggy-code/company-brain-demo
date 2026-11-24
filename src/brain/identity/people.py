@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Annotated
 
 import psycopg
-from agentgate.models import Role
+from agentgate.domain import Role
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from brain.tenancy.config import Business, ConfigError, Slug, read_yaml, validate

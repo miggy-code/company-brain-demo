@@ -21,8 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agentgate.domain import Role
 from agentgate.fixtures import find_canaries
-from agentgate.models import Role
 from agentgate.world import OperatorReason, reinstate_user, suspend_user
 
 from brain.answer.pipeline import Asked, Brain

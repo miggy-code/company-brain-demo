@@ -21,8 +21,8 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from agentgate.domain import Action, Role, User, UserStatus
 from agentgate.fixtures import sync_fixtures
-from agentgate.models import Action, Role, User, UserStatus
 from agentgate.policy.engine import Decision, DocumentFacts, Request
 from agentgate.policy.schema import Effect
 from agentgate.world import OpenRecord, World, open_world, record_fixture_sync
