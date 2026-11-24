@@ -57,6 +57,7 @@ class Http:
             "iat": now,
             "exp": now + 300,
             "azp": "brain-mcp-test",
+            "scope": "openid email profile",
         }
         claims.update(override)
         return jwt.encode(claims, self.key, algorithm="EdDSA", headers={"kid": self.kid})
@@ -163,6 +164,11 @@ def test_without_a_token_the_server_points_to_its_metadata(http: Http) -> None:
     ).json()
     assert metadata["resource"] == http.url
     assert [s.rstrip("/") for s in metadata["authorization_servers"]] == [ISSUER]
+    assert metadata["scopes_supported"] == ["openid", "email"]
+
+
+def test_a_token_without_the_email_scope_is_refused(http: Http) -> None:
+    assert post(http, http.token(LUCIA, scope="openid")).status_code == 403
 
 
 def test_a_verified_caller_sees_only_their_own_ceiling(http: Http) -> None:

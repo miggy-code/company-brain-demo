@@ -44,6 +44,7 @@ _SYNTHETIC = (
     "synthetic. Every tool answers as one person and returns only what that person can see "
     "in the source systems. Cite chunk ids (`item#n`) for every claim."
 )
+SCOPES = ("openid", "email")
 _DEMO = " The person was named when this server started (--as): a demo identity, not a login."
 
 
@@ -132,6 +133,9 @@ def build_http_server(
             issuer_url=AnyHttpUrl(issuer_url),
             resource_server_url=AnyHttpUrl(resource),
             validate_token_resource=True,
+            # Advertised in the resource metadata, so an MCP client asks the provider for just
+            # these (the person is the token's verified email), and required on every token.
+            required_scopes=list(SCOPES),
         ),
     )
 
