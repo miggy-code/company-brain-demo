@@ -13,6 +13,7 @@ someone outside the item's ceiling is detectable by the canary alone.
 
 import re
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -48,6 +49,20 @@ class _Strict(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class Deal(_Strict):
+    """A HubSpot deal's structured fields, next to the record's text (which stays the source
+    of retrieval). The body must state the same stage, so the two cannot drift apart."""
+
+    pipeline: Literal["preventa", "ventas", "alquileres"]
+    stage: str = Field(min_length=1, max_length=60)
+    amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    currency: Literal["USD", "PEN"]
+    # A person id.
+    owner: Slug
+    # None while the record has no expected or actual close date.
+    close_date: date | None = None
+
+
 class Message(_Strict):
     sender: str = Field(min_length=1, max_length=200)
     sent: date
@@ -69,6 +84,8 @@ class Item(_Strict):
     canary: Annotated[str, Field(pattern=r"^AGCANARY-[0-9A-F]{12}$")] | None = None
     # Items with the same series are versions of one document (see ingest.versions).
     series: Slug | None = None
+    # Required on a deal, absent on everything else.
+    deal: Deal | None = None
     body: str | None = None
     messages: tuple[Message, ...] | None = None
     columns: tuple[str, ...] | None = None
@@ -93,6 +110,10 @@ class Item(_Strict):
         for text in self._texts():
             if CANARY_TOKEN_RE.search(text):
                 raise ValueError("canaries go in the canary field, not in content")
+        if (self.kind == "deal") != (self.deal is not None):
+            raise ValueError("a deal, and only a deal, carries deal fields")
+        if self.deal is not None and f"Etapa: {self.deal.stage}." not in (self.body or ""):
+            raise ValueError(f"deal stage {self.deal.stage!r} is not the stage its body states")
         return self
 
     def _texts(self) -> list[str]:

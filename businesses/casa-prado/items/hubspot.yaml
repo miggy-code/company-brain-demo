@@ -1,5 +1,8 @@
 # Simulated HubSpot records. Visible to the owning team (1 preventa, 2 ventas,
 # 3 alquileres). Synthetic throughout.
+# A deal's `deal` block holds what HubSpot keeps as fields; its body must state the same
+# stage. A sale's amount is its price (or the last offer, for a lost one); a rental renewal's
+# is twelve months of the new rent.
 
 - id: cp-hubspot-deal-mirador-502
   source: hubspot
@@ -11,6 +14,13 @@
   tags: [deal, presales, mirador]
   acl: [hubspot-team:1]
   canary: AGCANARY-B5E5AFFB9766
+  deal:
+    pipeline: preventa
+    stage: Separación
+    amount: 189500
+    currency: USD
+    owner: cp-lucia
+    close_date: 2026-11-25
   body: |
     Etapa: Separación. Propietaria del deal: Lucía Quispe.
     Monto: USD 189,500. Separación de USD 3,000 recibida el 10 de noviembre de 2026.
@@ -27,6 +37,12 @@
   tags: [deal, sales]
   acl: [hubspot-team:2]
   canary: AGCANARY-667E48CCFFB1
+  deal:
+    pipeline: ventas
+    stage: Negociación
+    amount: 395000
+    currency: USD
+    owner: cp-lucia
   body: |
     Etapa: Negociación. Propietaria del deal: Lucía Quispe.
     Precio de lista USD 395,000. Comisión pactada con los vendedores: 3%.
@@ -42,6 +58,13 @@
   tags: [deal, rentals, renewal]
   acl: [hubspot-team:3]
   canary: AGCANARY-5CC6C9A2E68E
+  deal:
+    pipeline: alquileres
+    stage: Adenda firmada
+    amount: 42000
+    currency: PEN
+    owner: cp-martin
+    close_date: 2026-12-01
   body: |
     Etapa: Adenda firmada. Propietario del deal: Martín Huamán.
     Nueva renta PEN 3,500 desde el 1 de diciembre de 2026, por doce meses.
@@ -90,6 +113,12 @@
   tags: [deal, presales, mirador]
   acl: [hubspot-team:1]
   canary: AGCANARY-5F1F036F7A81
+  deal:
+    pipeline: preventa
+    stage: Negociación
+    amount: 186200
+    currency: USD
+    owner: cp-lucia
   body: |
     Etapa: Negociación. Propietaria del deal: Lucía Quispe. Monto: USD 186,200 con precio de
     lanzamiento. Separación pendiente. Financiamiento: ahorro propio y crédito por evaluar.
@@ -118,6 +147,13 @@
   tags: [deal, sales]
   acl: [hubspot-team:2]
   canary: AGCANARY-A715F2E6E2DA
+  deal:
+    pipeline: ventas
+    stage: Promesa en redacción
+    amount: 183000
+    currency: USD
+    owner: cp-lucia
+    close_date: 2026-12-20
   body: |
     Etapa: Promesa en redacción. Propietaria del deal: Lucía Quispe. Precio pactado
     USD 183,000 (lista USD 189,000). Comisión pactada con la vendedora: 3%. Escritura antes
@@ -133,6 +169,13 @@
   tags: [deal, sales]
   acl: [hubspot-team:2]
   canary: AGCANARY-B6F9FBBC4884
+  deal:
+    pipeline: ventas
+    stage: Cerrado perdido
+    amount: 340000
+    currency: USD
+    owner: cp-lucia
+    close_date: 2026-09-30
   body: |
     Etapa: Cerrado perdido. Propietaria del deal: Lucía Quispe. La familia Paredes ofreció
     USD 340,000 en septiembre de 2026; los vendedores no aceptaron bajar de USD 380,000.
@@ -148,6 +191,13 @@
   tags: [renewal, rentals, deal]
   acl: [hubspot-team:3]
   canary: AGCANARY-291984D2945D
+  deal:
+    pipeline: alquileres
+    stage: Adenda firmada
+    amount: 34800
+    currency: PEN
+    owner: cp-martin
+    close_date: 2026-11-01
   body: |
     Etapa: Adenda firmada. Propietario del deal: Martín Huamán. Renta PEN 2,900 sin cambio
     desde el 1 de noviembre de 2026, por doce meses. Comisión de renovación: medio mes de
