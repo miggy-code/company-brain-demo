@@ -225,6 +225,10 @@ def mcp(
     go to stderr."""
     typer.echo(DEMO_IDENTITY_NOTE, err=True)
     logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+    # MCP clients often stop a stdio server with SIGTERM. Python's default would exit without
+    # unwinding, leaving agentgate's proxy running with the provider key and a control socket;
+    # as an exception, the blocks below stop it (which ends its runs and revokes their tokens).
+    signal.signal(signal.SIGTERM, _exit_on_signal)
     try:
         with open_business(business_id, businesses_dir, data_dir) as opened:
             person = opened.person(as_email)
@@ -235,6 +239,10 @@ def mcp(
                 build_server(Tools(opened, server), lambda: caller, demo_identity=True).run("stdio")
     except (ConfigError, GateError, LookupError) as exc:
         _fail(str(exc))
+
+
+def _exit_on_signal(signum: int, frame: object) -> None:
+    raise SystemExit(128 + signum)
 
 
 def _render(answer: Answer, hits: Sequence[Hit]) -> str:
