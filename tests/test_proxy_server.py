@@ -3,6 +3,7 @@ every run, and each run the brain starts is ended when its block exits."""
 
 import sqlite3
 from collections.abc import Iterator
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -98,3 +99,18 @@ def test_a_provider_key_in_the_brain_environment_is_refused(
 
     with pytest.raises(GateError, match="DEEPSEEK_API_KEY"), serve_runs(opened, ModelMode.MOCK):
         pass
+
+
+def test_every_run_carries_the_servers_caps(opened: OpenBusiness) -> None:
+    lucia = opened.person("lucia.quispe@casaprado.example")
+
+    with (
+        serve_runs(opened, ModelMode.MOCK, max_usd=Decimal("0.25"), max_calls=2) as server,
+        server.run_for(lucia) as session,
+        sqlite3.connect(opened.world_paths.store) as db,
+    ):
+        caps = db.execute(
+            "SELECT max_usd, max_calls FROM run_limits WHERE run_id = ?", (session.run_id,)
+        ).fetchone()
+
+    assert (Decimal(caps[0]), caps[1]) == (Decimal("0.25"), 2)

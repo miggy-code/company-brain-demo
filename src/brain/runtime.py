@@ -154,10 +154,12 @@ def serve_runs(
     keys_file: Path | None = None,
     *,
     identity_config: Path | None = None,
+    max_usd: Decimal | None = None,
+    max_calls: int | None = None,
 ) -> Iterator[ProxyServer]:
     """agentgate's long-running proxy for the business's world, with the stand-in provider
     behind it unless live. Runs are started per call on the server (`run_for`,
-    `verified_run`)."""
+    `verified_run`), each under `max_usd` and `max_calls`."""
     model = opened.business.model
     with ExitStack() as stack:
         keys_file, upstream = _provider(stack, model, mode, keys_file)
@@ -170,6 +172,8 @@ def serve_runs(
                 keys_file,
                 upstream=upstream,
                 identity_config=identity_config,
+                max_usd=max_usd,
+                max_calls=max_calls,
             )
         )
 

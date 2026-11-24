@@ -21,7 +21,9 @@ import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from agentgate.model_proxy.client import ControlClient, ControlError, RunStart
 
@@ -57,21 +59,35 @@ class ProxyServer:
     model_url: str
     customer_id: str
     model: ModelConfig
+    # Caps for every run this server starts for the brain; they only tighten the policy's.
+    max_usd: Decimal | None = None
+    max_calls: int | None = None
 
     @contextmanager
     def run_for(self, person: Person) -> Iterator[ModelSession]:
         """A run for `person`, named by the brain (a demo identity, not verified)."""
-        with self._run(lambda: self.control.start_run(self.customer_id, person.id)) as session:
+        with self._run(
+            lambda: self.control.start_run(self.customer_id, person.id, **self._caps())
+        ) as session:
             yield session
 
     @contextmanager
     def verified_run(self, assertion: str, expected_user: str) -> Iterator[ModelSession]:
         """A run for the person `assertion` names, verified by agentgate. It must be the person
         the brain verified (`expected_user`), or the run is ended and the call fails."""
-        with self._run(lambda: self.control.start_verified_run(assertion)) as session:
+        with self._run(
+            lambda: self.control.start_verified_run(assertion, **self._caps())
+        ) as session:
             if session.user_id != expected_user:
                 raise InvariantError("agentgate started the run for another person")
             yield session
+
+    def _caps(self) -> dict[str, Any]:
+        return {
+            "ttl_seconds": RUN_TTL_SECONDS,
+            "max_usd": self.max_usd,
+            "max_calls": self.max_calls,
+        }
 
     def runs_live(self) -> int:
         return int(self.control.health()["runs_live"])
@@ -106,6 +122,8 @@ def proxy_server(
     *,
     upstream: str | None = None,
     identity_config: Path | None = None,
+    max_usd: Decimal | None = None,
+    max_calls: int | None = None,
 ) -> Iterator[ProxyServer]:
     """Serve runs of `world` until the block exits, then stop the server (which ends its runs
     and revokes their tokens). `upstream` overrides the configured provider origin (the mock
@@ -161,6 +179,8 @@ def proxy_server(
                         model_url=str(ready["model_url"]),
                         customer_id=customer_id,
                         model=model,
+                        max_usd=max_usd,
+                        max_calls=max_calls,
                     )
             finally:
                 stop_child(process)

@@ -6,6 +6,7 @@ agentgate proxy process reads.
 """
 
 import json
+import logging
 import signal
 import sys
 import tempfile
@@ -55,12 +56,14 @@ from brain.ingest.items import Item, load_items
 from brain.ingest.sync import Applier
 from brain.ingest.versions import load_not_versions, version_problems
 from brain.ingest.worker import WorkerBusy, run_worker
+from brain.interfaces.mcp.server import build_server
+from brain.interfaces.mcp.tools import DemoCaller, Tools
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
 from brain.redteam.report import write_baseline as write_baseline_file
 from brain.redteam.runner import Runner
 from brain.redteam.scenarios import load_decoys, load_scenarios
-from brain.runtime import ModelMode, open_business, open_run
+from brain.runtime import ModelMode, open_business, open_run, serve_runs
 from brain.search.query import PRODUCTION, Hit, Ranking
 from brain.search.rerank import BgeReranker, IdentityReranker, Reranker
 from brain.sim.generate import storyline_events
@@ -194,6 +197,36 @@ def ask(
                 err=True,
             )
     except (ConfigError, GateError, InvariantError, ModelError, LookupError) as exc:
+        _fail(str(exc))
+
+
+@app.command("mcp")
+def mcp(
+    business_id: str,
+    as_email: Annotated[
+        str, typer.Option("--as", help="Email of the person every tool call answers as.")
+    ],
+    model: Annotated[ModelMode, typer.Option("--model", help="live or mock.")] = ModelMode.LIVE,
+    keys_file: KeysFile = None,
+    businesses_dir: BusinessesDir = Path("businesses"),
+    data_dir: DataDir = Path("data"),
+) -> None:
+    """Serve the brain as an MCP server over stdio, as one person (a demo identity).
+
+    Tools: search, read_item, deals and ask. Each call is one agentgate run on a long-running
+    model proxy, ended when the call returns. stdout carries the MCP protocol; notes and logs
+    go to stderr."""
+    typer.echo(DEMO_IDENTITY_NOTE, err=True)
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+    try:
+        with open_business(business_id, businesses_dir, data_dir) as opened:
+            person = opened.person(as_email)
+            with serve_runs(
+                opened, model, keys_file, max_usd=ASK_MAX_USD, max_calls=ASK_MAX_CALLS
+            ) as server:
+                caller = DemoCaller(person.id)
+                build_server(Tools(opened, server), lambda: caller, demo_identity=True).run("stdio")
+    except (ConfigError, GateError, LookupError) as exc:
         _fail(str(exc))
 
 
