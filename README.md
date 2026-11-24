@@ -176,6 +176,21 @@ uv run brain mcp casa-prado --as lucia.quispe@casaprado.example --model mock
 
 This serves stdio. For Claude Code, for example: `claude mcp add casa-prado -- uv run --directory <this repo> brain mcp casa-prado --as lucia.quispe@casaprado.example --model mock`. `--as` is a demo identity here too.
 
+Over Streamable HTTP, callers sign in instead, with OAuth against Casa Prado's Keycloak realm (synthetic accounts, local test passwords, `businesses/casa-prado/keycloak/`):
+
+```bash
+docker compose --profile auth up -d --wait     # Keycloak 26.8.2 with the casa-prado realm
+uv run brain mcp casa-prado --http --issuer http://127.0.0.1:8080/realms/casa-prado --model mock
+# serves http://127.0.0.1:8765/mcp, with OAuth metadata at /.well-known/oauth-protected-resource/mcp
+```
+
+How a request is checked:
+1. **The token.** A request needs an access token whose audiences name this server and `agentgate`.
+2. **The brain's check.** Before any tool runs, the brain verifies the token with agentgate's own verifier: signature, exact issuer, audience, lifetime, and a verified email of a person of the business.
+3. **agentgate's check.** The brain hands the same token to agentgate, which verifies it again before it starts the call's run. The run must name the same person.
+
+A refused token gets 401. A refused run reads `access refused`.
+
 | Tool | What it returns |
 | --- | --- |
 | `search` | Chunks from hybrid search, with their ids, for citing. |
@@ -213,8 +228,13 @@ It passes 64/64 under each model. Mutation tests show it failing without the ACL
 
 ## Limits
 
-- Identity is not authenticated (`--as`). `brain ask` and the evals start a proxy process per question or person. The MCP server runs one long-running proxy, starting a run per tool call. Verified identity at run start (agentgate 0.3.0) comes with the MCP server's HTTP transport, which is not built yet.
-- The MCP server serves stdio only so far, and handles one tool call at a time.
+- `brain ask`, the evals and the MCP server's stdio transport take `--as`, a demo identity. Only the MCP server's HTTP transport authenticates its callers.
+- `brain ask` and the evals start a proxy process per question or person. The MCP server runs one long-running proxy and starts a run per tool call.
+- **What the HTTP transport accepts.**
+  - **Tokens are bearer credentials.** A stolen access token works until it expires (5 minutes in the realm), and each call starts a new run with it.
+  - **No revocation check.** Neither verifier asks the provider whether a token was revoked. A key the provider withdraws still verifies until its cache expires.
+  - **The same token goes on to agentgate.** It goes over a local socket only, and agentgate is an audience the token names. It never reaches the model provider.
+- The MCP server handles one tool call at a time. Interactive OAuth sign-in needs an MCP client that lets you set a client id (`brain-mcp`); the realm does not allow dynamic client registration.
 - Policy narrowing works by enumerating the business's distinct (label, tags) combinations through agentgate's engine. This is a temporary workaround until agentgate can compile a policy into a query predicate.
 - Audiences (several people who will see one answer) and threads exist in the pipeline and the leak suite; no interface uses them yet.
 - There are no real connectors. Week 0 comes from fixtures; later changes come from the simulated source through the change feed. The feed is polled, not pushed.
