@@ -166,6 +166,34 @@ Reading the table: every revocation was gone within about one poll interval, so 
 
 **Document versions.** Items that share a `series` are versions of one document. Search puts the newest version directly above an older one (a newer version just below the cut replaces the weakest unrelated result), and an answer that cites one version while another was retrieved ends with a fixed note in the asker's language: "Las fuentes no coinciden: … es más reciente que …". The note is built from the retrieved chunks only, so it never names a version the asker cannot see. Here the synthetic data sets `series`. A real connector cannot know that a copy replaced an original, so in the product a detector would suggest links for the owner to confirm. `brain index` already runs a first, rough version of that detector: it fails on files in the same folder (or its archive folder) with matching identifiers and similar titles that share no series, unless `not_versions.yaml` lists them as separate documents (the monthly fee statements, the brochure's two languages).
 
+## MCP server
+
+The brain is also an MCP server, so an agent client can query Casa Prado as one person and get only what that person can see. Casa Prado and all its data are synthetic.
+
+```bash
+uv run brain mcp casa-prado --as lucia.quispe@casaprado.example --model mock
+```
+
+This serves stdio. For Claude Code, for example: `claude mcp add casa-prado -- uv run --directory <this repo> brain mcp casa-prado --as lucia.quispe@casaprado.example --model mock`. `--as` is a demo identity here too.
+
+| Tool | What it returns |
+| --- | --- |
+| `search` | Chunks from hybrid search, with their ids, for citing. |
+| `read_item` | One whole item. One you may not see reads exactly like one that does not exist. |
+| `deals` | HubSpot deals you may see, with pipeline, stage, amount, currency, owner and close date, filtered by exact pipeline, stage or owner email. |
+| `ask` | A cited answer, with its sources, in the question's language. |
+
+- **Identity comes from the server, never from arguments.** No tool takes a person, and arguments a tool does not declare are dropped. The leak suite checks that `as`, `user` or `email` arguments change nothing.
+- **One run per call.** Each tool call is one agentgate run on the long-running model proxy (`agentgate model-proxy server`), capped like `brain ask`. It is ended when the call returns, and audited first: `brain.question`, `brain.retrieval`, a `brain.decision` per result, then `brain.tool_result` or `brain.answer`.
+- **The same guards.** Every result passes the permission predicate in the index query and agentgate's per-result decision.
+- **Errors say nothing.** An error reads `access refused` or `internal error`; the reason goes to stderr and to the audit log.
+
+`uv run brain redteam casa-prado --via mcp --model echo|obey|mock` runs the leak suite over MCP, as a client sees it:
+- **Scenarios:** the 58 scenarios one MCP caller can pose, each asked as `ask` and as `search`.
+- **Grid:** for each person, `read_item` on every item, decoy and a missing id, and `deals` under every filter.
+
+It passes 64/64 under each model. Mutation tests show it failing without the ACL predicate, without the per-result decision, or with a telling not-found.
+
 ## Layout
 
 | Path | Owns |
@@ -175,16 +203,18 @@ Reading the table: every revocation was gone within about one poll interval, so 
 | `src/brain/ingest/` | Items, structure-aware chunking, embeddings, the index, the change feed and sync worker, the version check |
 | `src/brain/sim/` | The company simulator: storyline, seeded background, replay, digests |
 | `src/brain/search/` | The permission predicate, BM25F + vector search, fusion, rerank |
-| `src/brain/gate/` | The only code that talks to agentgate and Panoptes: policy, model proxy runs, audit |
+| `src/brain/gate/` | The only code that talks to agentgate and Panoptes: policy, model proxy runs (per question, and on the long-running proxy), audit |
 | `src/brain/answer/` | Prompt, model clients, citation enforcement, the question pipeline |
 | `src/brain/evals/` | Permission suite, golden set, ablations, grader, metrics, reports, the mock provider (relevance, echo, obey) |
 | `reports/` | Dated eval reports (JSON with every attempt, and a markdown table) |
-| `src/brain/redteam/` | Leak suite: scenarios, non-interference variants, runner, report, baseline |
+| `src/brain/redteam/` | Leak suite: scenarios, non-interference variants, runner, report, baseline, and the run over MCP |
+| `src/brain/interfaces/mcp/` | The MCP server: the four tools and the stdio transport |
 | `businesses/casa-prado/` | The synthetic business: config, people, items, agentgate policy, eval sets |
 
 ## Limits
 
-- Identity is not authenticated (`--as`). Each question starts its own proxy process and run. agentgate 0.3.0 has a multi-run proxy and verified identity at run start; the brain does not use them yet.
+- Identity is not authenticated (`--as`). `brain ask` and the evals start a proxy process per question or person. The MCP server runs one long-running proxy, starting a run per tool call. Verified identity at run start (agentgate 0.3.0) comes with the MCP server's HTTP transport, which is not built yet.
+- The MCP server serves stdio only so far, and handles one tool call at a time.
 - Policy narrowing works by enumerating the business's distinct (label, tags) combinations through agentgate's engine. This is a temporary workaround until agentgate can compile a policy into a query predicate.
 - Audiences (several people who will see one answer) and threads exist in the pipeline and the leak suite; no interface uses them yet.
 - There are no real connectors. Week 0 comes from fixtures; later changes come from the simulated source through the change feed. The feed is polled, not pushed.

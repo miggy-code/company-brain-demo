@@ -176,8 +176,9 @@ def events_digest(schedule: Sequence[Scheduled]) -> str:
 
 
 def state_digest(conn: psycopg.Connection) -> str:
-    """Everything a person could observe of the business: items, ACLs, chunk text, people.
-    Embeddings are left out (a float reduction may differ across CPUs; search checks them)."""
+    """Everything a person could observe of the business: items, ACLs, chunk text, people and
+    deal fields. Embeddings are left out (a float reduction may differ across CPUs; search
+    checks them)."""
     items = conn.execute(
         "SELECT id, source, kind, title, location, updated::text, label, tags, acl_principals,"
         " series FROM items ORDER BY id"
@@ -187,7 +188,11 @@ def state_digest(conn: psycopg.Connection) -> str:
         "SELECT id, name, email, role, title, status, groups, slack_channels, hubspot_teams"
         " FROM persons ORDER BY id"
     ).fetchall()
-    return _sha256({"items": items, "chunks": chunks, "persons": persons})
+    deals = conn.execute(
+        "SELECT item_id, pipeline, stage, amount::text, currency, owner, close_date::text"
+        " FROM deals ORDER BY item_id"
+    ).fetchall()
+    return _sha256({"items": items, "chunks": chunks, "persons": persons, "deals": deals})
 
 
 def _sha256(value: object) -> str:

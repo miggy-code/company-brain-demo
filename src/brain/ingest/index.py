@@ -39,7 +39,7 @@ def rebuild_index(
     """Reset the business to week 0 in one transaction: `items` indexed, `people` active,
     the change feed empty."""
     with conn.transaction():
-        conn.execute("TRUNCATE items, chunks, postings, index_meta, source_events")
+        conn.execute("TRUNCATE items, chunks, postings, deals, index_meta, source_events")
         seed_persons(conn, people)
         chunks, postings = insert_items(conn, items, embedder)
         with conn.cursor() as cur:
@@ -86,6 +86,21 @@ def insert_items(
                 item.series,
             ),
         )
+        if item.deal is not None:
+            deal = item.deal
+            conn.execute(
+                "INSERT INTO deals (item_id, pipeline, stage, amount, currency, owner,"
+                " close_date) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (
+                    item.id,
+                    deal.pipeline,
+                    deal.stage,
+                    deal.amount,
+                    deal.currency,
+                    deal.owner,
+                    deal.close_date,
+                ),
+            )
         title_terms = Counter(tokenize(item.title))
         for chunk in chunks:
             body_terms = Counter(tokenize(chunk.text))

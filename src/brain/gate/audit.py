@@ -9,6 +9,10 @@ run id. Per question, in order:
 - `brain.decision`: one per returned chunk, agentgate's decision on it.
 - `brain.answer`: cited chunk ids and the not-found flag.
 
+An MCP retrieval tool call (`search`, `read_item`, `deals`) records `brain.question` for the
+call (the tool and its arguments, hashed), `brain.retrieval` and its decisions, then
+`brain.tool_result`: the tool and the chunk ids it returns.
+
 Events carry ids, counts and hashes, never item text, question text or answers, so the log
 does not become a second copy of what it protects. Writes are strict: an event Panoptes would
 alter or refuse raises, and the caller then sends no answer.
@@ -89,6 +93,9 @@ class AuditTrail:
             "success",
             {"cited": list(cited), "not_found": not_found, "language": language},
         )
+
+    def tool_result(self, tool: str, chunk_ids: Sequence[str]) -> str:
+        return self._record("tool_result", "success", {"tool": tool, "chunk_ids": list(chunk_ids)})
 
     def _record(
         self, name: str, status: str, details: dict[str, Any], target: str | None = None

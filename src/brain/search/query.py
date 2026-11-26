@@ -230,9 +230,7 @@ class Searcher:
             )
             for (row, fused_score), score in ranked[:k]
         )
-        count = self._conn.execute(sql.SQL(_PERMITTED_COUNT).format(permission=permission))
-        permitted = count.fetchone()
-        return SearchResult(hits=hits, permitted_chunks=int(permitted[0]) if permitted else 0)
+        return SearchResult(hits=hits, permitted_chunks=self._permitted(permission))
 
     def keyword_scores(self, permission: sql.Composable, query: str) -> list[tuple[str, float]]:
         terms = query_terms(query)
@@ -248,6 +246,14 @@ class Searcher:
         }
         cur = self._conn.execute(sql.SQL(_KEYWORD).format(permission=permission), params)
         return [(str(chunk_id), float(score)) for chunk_id, score in cur.fetchall()]
+
+    def permitted_chunks(self, audience: Audience, policy: PolicyFilter) -> int:
+        """How many chunks the audience may see in the whole business (for the audit log)."""
+        return self._permitted(permission_clause(audience, policy))
+
+    def _permitted(self, permission: sql.Composable) -> int:
+        row = self._conn.execute(sql.SQL(_PERMITTED_COUNT).format(permission=permission)).fetchone()
+        return int(row[0]) if row else 0
 
     def visible_items(self, audience: Audience, policy: PolicyFilter) -> list[str]:
         """Ids of every item the audience may see: the ceiling the eval checks against."""

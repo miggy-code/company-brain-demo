@@ -52,6 +52,13 @@ events:
     change: patch
     item: cp-hubspot-deal-mirador-604
     set:
+      deal:
+        pipeline: preventa
+        stage: Cerrado ganado
+        amount: 186200
+        currency: USD
+        owner: cp-lucia
+        close_date: 2026-12-08
       body: |
         Etapa: Cerrado ganado. Propietaria del deal: Lucía Quispe. Monto: USD 186,200 con
         precio de lanzamiento. Minuta firmada el 8 de diciembre de 2026; la separación de
@@ -91,6 +98,13 @@ events:
       label: confidential
       tags: [deal, rentals, renewal]
       acl: [hubspot-team:3]
+      deal:
+        pipeline: alquileres
+        stage: Adenda firmada
+        amount: 52200
+        currency: PEN
+        owner: cp-martin
+        close_date: 2027-01-01
       body: |
         Etapa: Adenda firmada. Propietario del deal: Martín Huamán.
         Nueva renta PEN 4,350 desde el 1 de enero de 2027, por doce meses.
@@ -179,6 +193,13 @@ events:
     change: patch
     item: cp-hubspot-deal-alameda-1204
     set:
+      deal:
+        pipeline: alquileres
+        stage: Adenda firmada
+        amount: 42000
+        currency: PEN
+        owner: cp-valeria
+        close_date: 2026-12-01
       body: |
         Etapa: Adenda firmada. Propietaria del deal: Valeria Ríos (antes Martín Huamán).
         Nueva renta PEN 3,500 desde el 1 de diciembre de 2026, por doce meses.
@@ -190,6 +211,13 @@ events:
     change: patch
     item: cp-hubspot-deal-alameda-1502
     set:
+      deal:
+        pipeline: alquileres
+        stage: Adenda firmada
+        amount: 52200
+        currency: PEN
+        owner: cp-valeria
+        close_date: 2027-01-01
       body: |
         Etapa: Adenda firmada. Propietaria del deal: Valeria Ríos (antes Martín Huamán).
         Nueva renta PEN 4,350 desde el 1 de enero de 2027, por doce meses.

@@ -35,7 +35,7 @@ from brain.tenancy.config import Business, ConfigError, Slug, read_yaml, validat
 
 DAYS_PER_WEEK = 7
 # Patch fields that change what a document says (the rest are where it is, what it is called).
-CONTENT_FIELDS = frozenset({"body", "messages", "rows", "columns"})
+CONTENT_FIELDS = frozenset({"body", "messages", "rows", "columns", "deal"})
 
 
 class _Strict(BaseModel):
@@ -485,7 +485,10 @@ class _Background:
             if at == len(stages) - 1:
                 return
             body = item.body.replace(found.group(0), f"Etapa: {stages[at + 1]}.", 1)
-            moved = item.model_copy(update={"body": body, "updated": when})
+            update: dict[str, Any] = {"body": body, "updated": when}
+            if item.deal is not None:
+                update["deal"] = item.deal.model_copy(update={"stage": stages[at + 1]})
+            moved = Item.model_validate({**item.model_dump(), **update})
             state.emit(week, when, f"bg-{item_id}-stage", ItemUpsert(item=moved))
 
         return run

@@ -24,13 +24,20 @@ from brain.gate.policy import (
     open_business_world,
     prepare_world,
 )
+from brain.gate.proxy_server import ProxyServer, proxy_server
 from brain.gate.session import ModelSession, model_session
 from brain.identity.people import Directory, Person, read_directory
 from brain.ingest.embedding import embedder_named
 from brain.ingest.index import index_models
 from brain.search.query import Searcher
 from brain.search.rerank import reranker_named
-from brain.tenancy.config import Business, BusinessPaths, business_paths, load_business
+from brain.tenancy.config import (
+    Business,
+    BusinessPaths,
+    ModelConfig,
+    business_paths,
+    load_business,
+)
 from brain.tenancy.database import connect
 
 
@@ -125,14 +132,7 @@ def open_session(
     """The model proxy run for `person`, with the stand-in provider behind it unless live."""
     model = opened.business.model
     with ExitStack() as stack:
-        upstream: str | None = None
-        if mode is not ModelMode.LIVE:
-            mock = stack.enter_context(mock_upstream(_MOCK_MODES[mode]))
-            scratch = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="brain-")))
-            keys_file = mock.write_keys_file(scratch / "keys.json", model.provider.value)
-            upstream = mock.url
-        elif keys_file is None:
-            raise GateError("a live run needs --keys-file (or BRAIN_PROVIDER_KEYS_FILE)")
+        keys_file, upstream = _provider(stack, model, mode, keys_file)
         yield stack.enter_context(
             model_session(
                 opened.world_paths,
@@ -145,6 +145,51 @@ def open_session(
                 max_calls=max_calls,
             )
         )
+
+
+@contextmanager
+def serve_runs(
+    opened: OpenBusiness,
+    mode: ModelMode,
+    keys_file: Path | None = None,
+    *,
+    identity_config: Path | None = None,
+    max_usd: Decimal | None = None,
+    max_calls: int | None = None,
+) -> Iterator[ProxyServer]:
+    """agentgate's long-running proxy for the business's world, with the stand-in provider
+    behind it unless live. Runs are started per call on the server (`run_for`,
+    `verified_run`), each under `max_usd` and `max_calls`."""
+    model = opened.business.model
+    with ExitStack() as stack:
+        keys_file, upstream = _provider(stack, model, mode, keys_file)
+        yield stack.enter_context(
+            proxy_server(
+                opened.world_paths,
+                opened.business.id,
+                model,
+                opened.paths.rate_table,
+                keys_file,
+                upstream=upstream,
+                identity_config=identity_config,
+                max_usd=max_usd,
+                max_calls=max_calls,
+            )
+        )
+
+
+def _provider(
+    stack: ExitStack, model: ModelConfig, mode: ModelMode, keys_file: Path | None
+) -> tuple[Path, str | None]:
+    """The keys file and upstream override for the proxy: the configured provider when live,
+    else the stand-in provider (on `stack`) with its throwaway key."""
+    if mode is ModelMode.LIVE:
+        if keys_file is None:
+            raise GateError("a live run needs --keys-file (or BRAIN_PROVIDER_KEYS_FILE)")
+        return keys_file, None
+    mock = stack.enter_context(mock_upstream(_MOCK_MODES[mode]))
+    scratch = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="brain-")))
+    return mock.write_keys_file(scratch / "keys.json", model.provider.value), mock.url
 
 
 def make_brain(

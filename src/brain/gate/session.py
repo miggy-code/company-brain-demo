@@ -116,10 +116,14 @@ def model_session(
         log_path = Path(scratch) / "proxy.log"
         with log_path.open("w") as log:
             process = subprocess.Popen(
-                args, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, env=_env()
+                args,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                env=child_env(),
             )
             try:
-                ready = _wait_ready(process, ready_file, log_path)
+                ready = wait_ready(process, ready_file, log_path)
                 yield ModelSession(
                     url=str(ready["url"]),
                     token=token_file.read_text(encoding="utf-8").strip(),
@@ -128,10 +132,11 @@ def model_session(
                     model=model,
                 )
             finally:
-                _stop(process)
+                stop_child(process)
 
 
-def _env() -> dict[str, str]:
+def child_env() -> dict[str, str]:
+    """The brain's environment minus anything key-shaped, for an agentgate child."""
     return {name: value for name, value in os.environ.items() if not _is_key_name(name)}
 
 
@@ -139,11 +144,11 @@ def _is_key_name(name: str) -> bool:
     return name in _KEY_NAMES or (name.startswith("AGENTGATE_") and name.endswith("_API_KEY"))
 
 
-def _wait_ready(process: subprocess.Popen[bytes], ready_file: Path, log: Path) -> dict[str, object]:
+def wait_ready(process: subprocess.Popen[bytes], ready_file: Path, log: Path) -> dict[str, object]:
     deadline = time.monotonic() + READY_TIMEOUT_S
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            raise GateError(f"the model proxy exited: {_tail(log)}")
+            raise GateError(f"the model proxy exited: {log_tail(log)}")
         if ready_file.exists():
             info = json.loads(ready_file.read_text(encoding="utf-8"))
             if isinstance(info, dict):
@@ -152,12 +157,12 @@ def _wait_ready(process: subprocess.Popen[bytes], ready_file: Path, log: Path) -
     raise GateError("the model proxy did not become ready in time")
 
 
-def _tail(log: Path) -> str:
+def log_tail(log: Path) -> str:
     lines = [line for line in log.read_text(errors="replace").splitlines() if line.strip()]
     return lines[-1] if lines else "no output"
 
 
-def _stop(process: subprocess.Popen[bytes]) -> None:
+def stop_child(process: subprocess.Popen[bytes]) -> None:
     if process.poll() is not None:
         return
     process.send_signal(signal.SIGTERM)
