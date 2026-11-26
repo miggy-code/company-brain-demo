@@ -8,7 +8,7 @@ dependencies = [
     "anthropic>=1.17,<2",
     "lingua-language-detector>=2.1,<3",
     "openai>=3.57,<4",
-    "panoptes-agentgate",
+    "panoptes-agentgate>=0.3.0,<0.4",
     "panoptes-observe>=0.3,<0.4",
     "pgvector>=0.5.1,<0.6",
     "psycopg[binary]>=3.3,<4",
@@ -38,8 +38,6 @@ build-backend = "hatchling.build"
 packages = ["src/brain"]
 
 [tool.uv.sources]
-# agentgate 0.1.0 is not on PyPI yet (PyPI has 0.0.1); depend on the local checkout until it is.
-panoptes-agentgate = { path = "../agentgate", editable = false }
 # CPU wheels on Linux keep CI from downloading CUDA builds; macOS wheels come from PyPI.
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 

@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from agentgate.models import Role
+from agentgate.domain import Role
 
 from brain.answer.compose import Answer, Sentence
 from brain.answer.pipeline import Asked

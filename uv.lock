@@ -287,7 +287,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=1.17,<2" },
     { name = "lingua-language-detector", specifier = ">=2.1,<3" },
     { name = "openai", specifier = ">=3.57,<4" },
-    { name = "panoptes-agentgate", directory = "../agentgate" },
+    { name = "panoptes-agentgate", specifier = ">=0.3.0,<0.4" },
     { name = "panoptes-observe", specifier = ">=0.3,<0.4" },
     { name = "pgvector", specifier = ">=0.5.1,<0.6" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3,<4" },
@@ -1194,34 +1194,20 @@ wheels = [
 
 [[package]]
 name = "panoptes-agentgate"
-version = "0.1.0"
-source = { directory = "../agentgate" }
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "httpx" },
     { name = "mcp" },
     { name = "panoptes-observe", extra = ["proxy"] },
     { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pyyaml" },
     { name = "typer" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=1.0,<2" },
-    { name = "mcp", specifier = ">=2.3,<3" },
-    { name = "panoptes-observe", extras = ["proxy"], specifier = ">=0.2.0,<0.4" },
-    { name = "pydantic", specifier = ">=2.9,<3" },
-    { name = "pyyaml", specifier = ">=6,<7" },
-    { name = "typer", specifier = ">=0.12,<1" },
-]
-provides-extras = ["anthropic"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "anthropic", specifier = ">=1.0,<2" },
-    { name = "mypy", specifier = ">=1.13,<2" },
-    { name = "pytest", specifier = ">=8,<9" },
-    { name = "ruff", specifier = ">=0.8,<1" },
-    { name = "types-pyyaml", specifier = ">=6,<7" },
+sdist = { url = "https://files.pythonhosted.org/packages/ce/f7/f090cfa88f1cb009442335aa5095feaad3861a959ce42e54abd98daaa681/panoptes_agentgate-0.3.0.tar.gz", hash = "sha256:9130105e37a20479a66bfc53cd9771ea40cdaf7acf77b213a79c168ed3b8b528", size = 682380, upload-time = "2026-11-24T20:53:16.624Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/b9/7f0c019aba3cad42fb765b3f631411721e4f3f627f8647039bf99556f800/panoptes_agentgate-0.3.0-py3-none-any.whl", hash = "sha256:83d95e26b26986673c1ecddd88700f488bd39ed74bf86aaa724b1890de04a7aa", size = 368885, upload-time = "2026-11-24T20:53:15.116Z" },
 ]
 
 [[package]]

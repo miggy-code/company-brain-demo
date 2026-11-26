@@ -22,7 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import psycopg
-from agentgate.models import User
+from agentgate.domain import User
 from agentgate.policy.schema import Effect
 
 from brain.answer.compose import (
