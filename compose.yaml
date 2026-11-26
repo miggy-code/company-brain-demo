@@ -17,5 +17,20 @@ services:
       timeout: 3s
       retries: 30
 
+  # The identity provider for the MCP server's HTTP transport (unit 05), with Casa Prado's
+  # synthetic realm. Only with `docker compose --profile auth up -d`. Admin and user passwords
+  # are local test values.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    profiles: ["auth"]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin-local-only
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./businesses/casa-prado/keycloak/realm-casa-prado.json:/opt/keycloak/data/import/realm-casa-prado.json:ro
+
 volumes:
   pgdata:

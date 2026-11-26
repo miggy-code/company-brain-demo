@@ -11,10 +11,16 @@ exception type and agentgate's reason code reach the server's log (stderr).
 import logging
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import Field
+from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl, Field
+from starlette.applications import Starlette
 
 from brain.gate.proxy_server import AccessRefused
 from brain.interfaces.mcp.tools import (
@@ -28,6 +34,7 @@ from brain.interfaces.mcp.tools import (
     ItemOut,
     SearchOut,
     Tools,
+    VerifiedCaller,
 )
 
 log = logging.getLogger("brain.mcp")
@@ -37,6 +44,7 @@ _SYNTHETIC = (
     "synthetic. Every tool answers as one person and returns only what that person can see "
     "in the source systems. Cite chunk ids (`item#n`) for every claim."
 )
+SCOPES = ("openid", "email")
 _DEMO = " The person was named when this server started (--as): a demo identity, not a login."
 
 
@@ -101,3 +109,45 @@ def _guarded[T](tool: str, run: Callable[[], T]) -> T:
     except Exception as exc:
         log.error("%s: failed (%s)", tool, type(exc).__name__)
         raise ToolError("internal error") from None
+
+
+def build_http_server(
+    tools: Tools, verifier: TokenVerifier, *, issuer_url: str, resource: str
+) -> MCPServer:
+    """The MCP server for Streamable HTTP: every request needs a bearer token `verifier`
+    accepts for `resource`, and the caller is the person it names. agentgate verifies the
+    same token again before the call's run starts."""
+
+    def caller() -> Caller:
+        access = get_access_token()
+        if access is None or access.subject is None:
+            raise AccessRefused("no_verified_token")
+        return VerifiedCaller(token=access.token, person_id=access.subject)
+
+    return build_server(
+        tools,
+        caller,
+        demo_identity=False,
+        token_verifier=verifier,
+        auth=AuthSettings(
+            issuer_url=AnyHttpUrl(issuer_url),
+            resource_server_url=AnyHttpUrl(resource),
+            validate_token_resource=True,
+            # Advertised in the resource metadata, so an MCP client asks the provider for just
+            # these (the person is the token's verified email), and required on every token.
+            required_scopes=list(SCOPES),
+        ),
+    )
+
+
+def http_app(server: MCPServer, resource: str) -> Starlette:
+    """The ASGI app serving `server` at the resource URL's path. Host and Origin checks
+    (DNS rebinding) allow only the resource URL's own host."""
+    url = urlsplit(resource)
+    return server.streamable_http_app(
+        streamable_http_path=url.path or "/mcp",
+        transport_security=TransportSecuritySettings(
+            allowed_hosts=[url.netloc], allowed_origins=[f"{url.scheme}://{url.netloc}"]
+        ),
+        host=url.hostname or "127.0.0.1",
+    )

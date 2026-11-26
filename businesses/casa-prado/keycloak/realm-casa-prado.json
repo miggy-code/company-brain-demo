@@ -1,0 +1,231 @@
+{
+  "realm": "casa-prado",
+  "displayName": "Casa Prado Inmobiliaria (synthetic demo)",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "duplicateEmailsAllowed": true,
+  "loginWithEmailAllowed": false,
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "brain-mcp",
+      "name": "Company brain MCP: sign-in for MCP clients (authorization code with PKCE)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "agentgate-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "agentgate",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "brain-mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://127.0.0.1:8765/mcp",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "brain-mcp-test",
+      "name": "Company brain MCP test client: direct grant, for tests and CI only",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "agentgate-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "agentgate",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "brain-mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://127.0.0.1:8765/mcp",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "rosa",
+      "email": "rosa.prado@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Rosa",
+      "lastName": "Prado Valdivia",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-rosa",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "diego",
+      "email": "diego.salinas@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Diego",
+      "lastName": "Salinas Rojas",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-diego",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "lucia",
+      "email": "lucia.quispe@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Lucía",
+      "lastName": "Quispe Mendívil",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-lucia",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "martin",
+      "email": "martin.huaman@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Martín",
+      "lastName": "Huamán Torres",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-martin",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "carla",
+      "email": "carla.mendoza@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Carla",
+      "lastName": "Mendoza Ríos",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-carla",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "jorge",
+      "email": "jorge.ccori@servitecandino.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Jorge",
+      "lastName": "Ccori",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-jorge",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "valeria",
+      "email": "valeria.rios@casaprado.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Valeria",
+      "lastName": "Ríos Castro",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-valeria",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "carla-unverified",
+      "email": "carla.mendoza@casaprado.example",
+      "emailVerified": false,
+      "enabled": true,
+      "firstName": "Carla",
+      "lastName": "Sin verificar",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-carla-unverified",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "stranger",
+      "email": "stranger@elsewhere.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Sam",
+      "lastName": "Stranger",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo-only-stranger",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}
