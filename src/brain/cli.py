@@ -63,6 +63,8 @@ from brain.ingest.versions import load_not_versions, version_problems
 from brain.ingest.worker import WorkerBusy, run_worker
 from brain.interfaces.mcp.server import build_http_server, build_server, http_app
 from brain.interfaces.mcp.tools import DemoCaller, Tools
+from brain.interfaces.web.app import WebSettings, create_app
+from brain.interfaces.web.service import DEFAULT_DAY_USD, demo_service
 from brain.redteam.mcp import McpSuite, reachable
 from brain.redteam.report import baseline_problems, format_table, write_readme
 from brain.redteam.report import markdown as markdown_block
@@ -312,6 +314,55 @@ def _serve_http(
             uvicorn.run(app, host=host, port=port, log_level="warning")
     finally:
         verifier.close()
+
+
+@app.command("web")
+def web(
+    business_id: str,
+    allow_origin: Annotated[
+        str, typer.Option("--allow-origin", help="The page's origin (CORS), e.g. its Vercel URL.")
+    ] = "http://localhost:3000",
+    host: Annotated[str, typer.Option("--host", help="Address to bind.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port")] = 8000,
+    trusted_proxies: Annotated[
+        int,
+        typer.Option(
+            "--trusted-proxies",
+            min=0,
+            help="Proxy hops in front of the backend whose X-Forwarded-For is trusted.",
+        ),
+    ] = 0,
+    day_usd: Annotated[
+        Decimal,
+        typer.Option(
+            "--day-usd", parser=Decimal, help="Model spend per day (lowers the policy's cap)."
+        ),
+    ] = DEFAULT_DAY_USD,
+    model: Annotated[ModelMode, typer.Option("--model", help="live or mock.")] = ModelMode.MOCK,
+    keys_file: KeysFile = None,
+    businesses_dir: BusinessesDir = Path("businesses"),
+    data_dir: DataDir = Path("data"),
+) -> None:
+    """Serve the persona demo's API for the page in web/: one question as several personas,
+    each on a run agentgate starts from a signed, single-use persona assertion, and a live
+    unshare timed through the change feed. Login-free: personas are not logins."""
+    logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+    signal.signal(signal.SIGTERM, _exit_on_signal)
+    try:
+        with demo_service(
+            business_id, businesses_dir, data_dir, model, keys_file, day_usd=day_usd
+        ) as service:
+            settings = WebSettings(allow_origin=allow_origin, trusted_proxies=trusted_proxies)
+            typer.echo(f"persona demo API at http://{host}:{port} (page {allow_origin})", err=True)
+            uvicorn.run(
+                create_app(service, settings),
+                host=host,
+                port=port,
+                log_level="warning",
+                proxy_headers=False,
+            )
+    except (ConfigError, GateError, LookupError) as exc:
+        _fail(str(exc))
 
 
 def _exit_on_signal(signum: int, frame: object) -> None:
