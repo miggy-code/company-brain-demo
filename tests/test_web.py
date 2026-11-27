@@ -344,6 +344,28 @@ def ask_(web: Web) -> Any:
     return ask(web, PRICE_803, ["cp-rosa", "cp-lucia"])
 
 
+def test_past_the_waiting_room_a_request_is_told_busy_at_once(
+    web: Web, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Each waiting stream holds a server thread, so only a few may wait.
+    service = web.service
+    monkeypatch.setattr(service, "_max_waiting", 1)
+    waiter: list[Any] = []
+    service._lock.acquire()
+    try:
+        first = threading.Thread(target=lambda: waiter.extend(service.ask(PRICE_803, ["cp-lucia"])))
+        first.start()
+        while service._waiting < 1:
+            threading.Event().wait(0.01)
+        turned_away = [e.model_dump(mode="json") for e in service.ask(PRICE_803, ["cp-lucia"])]
+    finally:
+        service._lock.release()
+    first.join(60)
+
+    assert turned_away == [{"kind": "error", "code": "busy"}]
+    assert [e.kind for e in waiter] == ["queued", "answer"]
+
+
 def test_a_failed_statement_does_not_poison_later_requests(web: Web) -> None:
     with pytest.raises(psycopg.errors.UndefinedTable):
         web.opened.conn.execute("SELECT * FROM no_such_table")
@@ -411,8 +433,10 @@ def test_a_spoofed_forwarded_header_does_not_buy_more_answers(shared: DemoServic
         {"question": PRICE_803, "personas": ["cp-rosa"], "as": "cp-jorge"},
     ],
 )
-def test_invalid_bodies_are_refused(web: Web, body: dict[str, Any]) -> None:
-    assert web.client.post("/api/ask", json=body).status_code == 422
+def test_invalid_bodies_are_refused_without_echoing_them(web: Web, body: dict[str, Any]) -> None:
+    refused = web.client.post("/api/ask", json=body)
+
+    assert (refused.status_code, refused.json()) == (422, {"detail": "invalid request"})
 
 
 def test_an_unknown_persona_is_not_found(web: Web) -> None:

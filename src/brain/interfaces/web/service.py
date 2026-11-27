@@ -56,6 +56,9 @@ SOURCE = "demo"
 # A revocation not applied within this many polls is reported as not forgotten.
 BOUND_POLLS = 10
 LOCK_TIMEOUT = 60.0
+# Requests that may wait for the lock. Each waiting stream holds one of the HTTP server's
+# worker threads, so past this the request is told busy at once instead.
+MAX_WAITING = 4
 # How often the episode checks whether the unshared item is gone yet.
 OBSERVE_TICK = 0.01
 RESTORE_TIMEOUT = 30.0
@@ -149,6 +152,9 @@ class DemoService:
         self._lock_timeout = lock_timeout
         self._tools = Tools(opened, server)
         self._lock = threading.Lock()
+        self._max_waiting = MAX_WAITING
+        self._waiting = 0
+        self._waiting_lock = threading.Lock()
         self._fixture_acls = {
             item.id: frozenset(item.acl) for item in load_items(opened.paths.items_dir)
         }
@@ -260,17 +266,26 @@ class DemoService:
     @contextmanager
     def _turn(self) -> Iterator[Iterator[Event]]:
         """Hold the demo for one request. The block gets the events to send while waiting:
-        `queued` if another request holds it, then `busy` if it is not free in time."""
-        waited: list[Event] = []
+        `queued` if another request holds it, then `busy` if it is not free in time; `busy` at
+        once if too many requests are waiting already."""
         acquired = self._lock.acquire(blocking=False)
-        if not acquired:
-            waited.append(Queued())
 
         def wait() -> Iterator[Event]:
             nonlocal acquired
-            yield from waited
             if not acquired:
-                acquired = self._lock.acquire(timeout=self._lock_timeout)
+                with self._waiting_lock:
+                    room = self._waiting < self._max_waiting
+                    if room:
+                        self._waiting += 1
+                if not room:
+                    yield Failed(code="busy")
+                    return
+                try:
+                    yield Queued()
+                    acquired = self._lock.acquire(timeout=self._lock_timeout)
+                finally:
+                    with self._waiting_lock:
+                        self._waiting -= 1
                 if not acquired:
                     yield Failed(code="busy")
                     return

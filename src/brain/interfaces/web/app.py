@@ -22,7 +22,9 @@ from dataclasses import dataclass
 from typing import Annotated, Any, Self
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -121,6 +123,11 @@ def create_app(service: DemoService, settings: WebSettings) -> FastAPI:
         }
     )
     limits_lock = threading.Lock()
+
+    @app.exception_handler(RequestValidationError)
+    def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # FastAPI's default body echoes the offending input back; error bodies never do.
+        return JSONResponse({"detail": "invalid request"}, status_code=422)
 
     def visitor(request: Request) -> str:
         peer = request.client.host if request.client else "unknown"
