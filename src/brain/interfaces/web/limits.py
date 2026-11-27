@@ -30,14 +30,32 @@ class RateLimiter:
         self._buckets = {name: tuple(windows) for name, windows in buckets.items()}
         self._clock = clock
         self._taken: dict[tuple[str, str], deque[float]] = {}
+        self._longest = max(w.seconds for windows in self._buckets.values() for w in windows)
 
     def take(self, bucket: str, client: str, cost: int = 1) -> float | None:
         """None if admitted (and counted), else the seconds until it would be."""
-        windows = self._buckets[bucket]
+        return self.take_all({bucket: cost}, client)
+
+    def take_all(self, costs: Mapping[str, int], client: str) -> float | None:
+        """One request charged to several buckets: admitted (and counted) only if every bucket
+        admits it, else the seconds until all would."""
         now = self._clock()
-        longest = max(w.seconds for w in windows)
+        retry = 0.0
+        for bucket, cost in costs.items():
+            wait = self._wait(bucket, client, cost, now)
+            if wait is not None:
+                retry = max(retry, wait)
+        if retry > 0:
+            return retry
+        for bucket, cost in costs.items():
+            self._taken.setdefault((bucket, client), deque()).extend([now] * cost)
+        self._prune(now - self._longest)
+        return None
+
+    def _wait(self, bucket: str, client: str, cost: int, now: float) -> float | None:
+        windows = self._buckets[bucket]
         taken = self._taken.setdefault((bucket, client), deque())
-        while taken and taken[0] <= now - longest:
+        while taken and taken[0] <= now - max(w.seconds for w in windows):
             taken.popleft()
         retry = 0.0
         for window in windows:
@@ -48,11 +66,7 @@ class RateLimiter:
             if over > 0:
                 # The `over`-th oldest request in the window must leave it first.
                 retry = max(retry, inside[over - 1] + window.seconds - now)
-        if retry > 0:
-            return retry
-        taken.extend([now] * cost)
-        self._prune(now - longest)
-        return None
+        return retry if retry > 0 else None
 
     def _prune(self, cutoff: float) -> None:
         """Forget clients whose requests have all left their windows, so memory stays bounded

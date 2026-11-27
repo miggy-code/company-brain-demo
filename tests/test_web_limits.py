@@ -75,3 +75,15 @@ def test_with_trusted_proxies_the_client_is_the_hop_they_appended() -> None:
 def test_a_short_forwarded_header_falls_back_to_the_peer() -> None:
     assert client_ip("10.0.0.9", None, trusted_proxies=1) == "10.0.0.9"
     assert client_ip("10.0.0.9", "203.0.113.7", trusted_proxies=2) == "10.0.0.9"
+
+
+def test_a_request_charged_to_several_buckets_is_admitted_by_all_or_costs_nothing() -> None:
+    limiter = RateLimiter(
+        {"unshares": (Window(limit=2, seconds=600),), "answers": (Window(limit=3, seconds=600),)},
+        clock=Clock(),
+    )
+
+    assert limiter.take_all({"answers": 3}, "a") is None
+    assert limiter.take_all({"unshares": 1, "answers": 1}, "a") is not None
+    # The refused unshare took no unshare.
+    assert limiter.take_all({"unshares": 2}, "a") is None

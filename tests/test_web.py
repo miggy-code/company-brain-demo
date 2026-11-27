@@ -307,6 +307,43 @@ def test_an_ask_during_an_episode_waits_and_never_sees_the_unshare(
     assert seen[-1][1]["kind"] == "restored"
 
 
+def test_an_unshare_whose_viewer_left_while_it_waited_changes_nothing(
+    fresh_web: Web, fresh_casa_prado: CasaPrado
+) -> None:
+    service = fresh_web.service
+
+    gone = list(
+        service.unshare(PRICE_LIST, "cp-lucia", PRICE_803, ["cp-lucia"], cancelled=lambda: True)
+    )
+
+    assert gone == []
+    assert db_acls(fresh_casa_prado.business_id) == fixture_acls(fresh_casa_prado)
+
+
+def test_a_persona_that_fails_on_the_database_does_not_fail_the_next(
+    web: Web, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tools = web.service._tools
+    real = tools.ask
+
+    def ask(caller: Any, question: str) -> Any:
+        if caller.person_id == "cp-rosa":
+            web.opened.conn.execute("SELECT * FROM no_such_table")
+        return real(caller, question)
+
+    monkeypatch.setattr(tools, "ask", ask)
+    answers = [data for name, data in events(ask_(web)) if name == "answer"]
+
+    assert [(a["persona_id"], a["status"]) for a in answers] == [
+        ("cp-rosa", "error"),
+        ("cp-lucia", "ok"),
+    ]
+
+
+def ask_(web: Web) -> Any:
+    return ask(web, PRICE_803, ["cp-rosa", "cp-lucia"])
+
+
 def test_a_failed_statement_does_not_poison_later_requests(web: Web) -> None:
     with pytest.raises(psycopg.errors.UndefinedTable):
         web.opened.conn.execute("SELECT * FROM no_such_table")

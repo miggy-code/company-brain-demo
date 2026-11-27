@@ -130,9 +130,9 @@ def create_app(service: DemoService, settings: WebSettings) -> FastAPI:
             trusted_proxies=settings.trusted_proxies,
         )
 
-    def charge(request: Request, bucket: str, cost: int) -> None:
+    def charge(request: Request, costs: dict[str, int]) -> None:
         with limits_lock:
-            retry = limiter.take(bucket, visitor(request), cost)
+            retry = limiter.take_all(costs, visitor(request))
         if retry is not None:
             raise HTTPException(
                 status_code=429,
@@ -146,13 +146,12 @@ def create_app(service: DemoService, settings: WebSettings) -> FastAPI:
 
     def checked_ask(body: AskIn, request: Request) -> AskIn:
         known(body.personas)
-        charge(request, "answers", len(body.personas))
+        charge(request, {"answers": len(body.personas)})
         return body
 
     def checked_unshare(body: UnshareIn, request: Request) -> UnshareIn:
         known([*body.personas, body.persona_id])
-        charge(request, "unshares", 1)
-        charge(request, "answers", len(body.personas))
+        charge(request, {"unshares": 1, "answers": len(body.personas)})
         return body
 
     @app.get("/api/health")

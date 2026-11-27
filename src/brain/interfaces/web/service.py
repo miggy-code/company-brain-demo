@@ -8,8 +8,10 @@ An unshare is one episode:
 1. take off the item's ACL every principal through which the persona sees it (as the file's
    owner would, say the `ventas` group off the price list);
 2. commit that as an `item_acl` event to the change feed; a sync worker (`run_worker`, on its
-   own connection, started for the episode) applies it, and the `Prober` times it from the
-   commit to the apply on the database clock and confirms it gone for everyone who lost it;
+   own connection, started for the episode) applies it. The time shown is observed: from the
+   commit until the permission predicate no longer lets anyone who lost the item see it. The
+   `Prober`'s commit-to-apply time on the database clock is a detail, and its search confirms
+   the item gone;
 3. re-ask the question for the shown personas who lost the item;
 4. reconcile every item's ACL to the fixtures through the same feed, so the next visitor
    starts from the same state. The same reconcile runs at start, so a crash mid-episode heals.
@@ -204,6 +206,9 @@ class DemoService:
                 yield event
                 if isinstance(event, Failed):
                     return
+            if cancelled():
+                # The viewer left while the request waited: nothing to show it to.
+                return
             person = self.persona(persona_id)
             acl = None if person is None else self._acl_seen_by(person, item_id)
             if person is None or acl is None:
@@ -302,6 +307,8 @@ class DemoService:
         except Exception as exc:
             log.error("%s: failed (%s)", persona_id, type(exc).__name__)
             status = "error"
+            # A failed statement aborts the shared transaction; the next persona starts clean.
+            self.opened.conn.rollback()
         elapsed = max(1, round((time.monotonic() - started) * 1000))
         return PersonaAnswer(persona_id=persona_id, status=status, answer=out, elapsed_ms=elapsed)
 
