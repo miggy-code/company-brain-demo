@@ -17,6 +17,7 @@ Two decisions come from agentgate's PolicyEngine:
 import shutil
 from collections.abc import Iterable
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import psycopg
@@ -64,8 +65,16 @@ class WorldPaths:
         return self.root / "agentgate" / "fixtures"
 
 
-def prepare_world(business: Business, directory: Directory, paths: BusinessPaths) -> WorldPaths:
-    """Write the agentgate policy and fixture folders for the business under its data dir."""
+def prepare_world(
+    business: Business,
+    directory: Directory,
+    paths: BusinessPaths,
+    *,
+    day_usd: Decimal | None = None,
+) -> WorldPaths:
+    """Write the agentgate policy and fixture folders for the business under its data dir.
+    `day_usd` lowers the policy's spend per customer-day in this world's copy (a public
+    deployment's ceiling); asking to raise it is an error."""
     world = WorldPaths(paths.data)
     policy_target = world.policies / business.id
     policy_target.mkdir(parents=True, exist_ok=True)
@@ -73,6 +82,8 @@ def prepare_world(business: Business, directory: Directory, paths: BusinessPaths
         source = paths.policy_dir / name
         if source.is_file():
             shutil.copyfile(source, policy_target / name)
+    if day_usd is not None:
+        _lower_day_spend(policy_target / "policy.yaml", day_usd)
     fixture_target = world.fixtures / business.id
     fixture_target.mkdir(parents=True, exist_ok=True)
     customer = {
@@ -84,6 +95,15 @@ def prepare_world(business: Business, directory: Directory, paths: BusinessPaths
     (fixture_target / "customer.yaml").write_text(yaml.safe_dump(customer, sort_keys=False))
     _write_users(fixture_target, directory)
     return world
+
+
+def _lower_day_spend(policy_file: Path, day_usd: Decimal) -> None:
+    policy = yaml.safe_load(policy_file.read_text(encoding="utf-8"))
+    current = Decimal(str(policy["spend"]["per_customer_day_usd"]))
+    if day_usd > current:
+        raise GateError(f"the day spend can only be lowered (the policy allows {current})")
+    policy["spend"]["per_customer_day_usd"] = str(day_usd)
+    policy_file.write_text(yaml.safe_dump(policy, sort_keys=False), encoding="utf-8")
 
 
 def _write_users(fixture_target: Path, directory: Directory) -> None:

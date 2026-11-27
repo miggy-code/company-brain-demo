@@ -81,14 +81,23 @@ class OpenBusiness:
 
 
 @contextmanager
-def open_business(business_id: str, businesses_dir: Path, data_dir: Path) -> Iterator[OpenBusiness]:
+def open_business(
+    business_id: str,
+    businesses_dir: Path,
+    data_dir: Path,
+    *,
+    day_usd: Decimal | None = None,
+) -> Iterator[OpenBusiness]:
+    """`day_usd` lowers agentgate's spend per customer-day for this world (see prepare_world)."""
     paths = business_paths(business_id, businesses_dir, data_dir)
     business = load_business(paths)
     with ExitStack() as stack:
         conn = stack.enter_context(connect(business.id))
         embedder, reranker = index_models(conn)
         # agentgate's users come from the persons table, so a leaver stays suspended.
-        world_paths = prepare_world(business, read_directory(business, conn), paths)
+        world_paths = prepare_world(
+            business, read_directory(business, conn), paths, day_usd=day_usd
+        )
         world = stack.enter_context(open_business_world(world_paths))
         yield OpenBusiness(
             business=business,

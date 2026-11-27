@@ -50,34 +50,45 @@ class IssuerSpec:
     algorithms: tuple[str, ...]
     # Access tokens are reusable within their lifetime; keep it short (the realm's is 300 s).
     max_lifetime_seconds: int = 300
-    # A `signed` issuer's public keys (a local stand-in for an OIDC provider).
+    # A `signed` issuer's public keys (the persona signer, or a stand-in for an OIDC provider).
     jwks_file: Path | None = None
+    # Persona assertions (06) start one run each; OIDC access tokens are reused (05b).
+    single_use: bool = False
 
 
 def write_trust_configs(directory: Path, spec: IssuerSpec, resource: str) -> tuple[Path, Path]:
     """agentgate's trust config (audience `agentgate`) and the brain's (audience: the MCP
     resource URL), for the same issuer. Returns (agentgate's, the brain's)."""
-    directory.mkdir(parents=True, exist_ok=True)
-    paths = []
-    for filename, audience in [("agentgate.yaml", AGENTGATE_AUDIENCE), ("brain.yaml", resource)]:
-        issuer: dict[str, Any] = {
-            "name": spec.name,
-            "kind": spec.kind.value,
-            "issuer": spec.issuer,
-            "audience": audience,
-            "customer": spec.customer,
-            # The person is the token's `email`, which must be verified (oidc), or its `sub`.
-            "subject": "email",
-            "algorithms": list(spec.algorithms),
-            "max_lifetime_seconds": spec.max_lifetime_seconds,
-            "single_use": False,
-        }
-        if spec.jwks_file is not None:
-            issuer["jwks_file"] = str(spec.jwks_file.resolve())
-        path = directory / filename
-        path.write_text(yaml.safe_dump({"issuers": [issuer]}, sort_keys=False), encoding="utf-8")
-        paths.append(path)
-    return paths[0], paths[1]
+    return (
+        _write_config(directory / "agentgate.yaml", spec, AGENTGATE_AUDIENCE),
+        _write_config(directory / "brain.yaml", spec, resource),
+    )
+
+
+def write_agentgate_config(directory: Path, spec: IssuerSpec) -> Path:
+    """Only agentgate's trust config, for a host that verifies no inbound tokens itself (the
+    persona demo mints its own assertions)."""
+    return _write_config(directory / "agentgate.yaml", spec, AGENTGATE_AUDIENCE)
+
+
+def _write_config(path: Path, spec: IssuerSpec, audience: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    issuer: dict[str, Any] = {
+        "name": spec.name,
+        "kind": spec.kind.value,
+        "issuer": spec.issuer,
+        "audience": audience,
+        "customer": spec.customer,
+        # The person is the token's `email`, which must be verified (oidc), or its `sub`.
+        "subject": "email",
+        "algorithms": list(spec.algorithms),
+        "max_lifetime_seconds": spec.max_lifetime_seconds,
+        "single_use": spec.single_use,
+    }
+    if spec.jwks_file is not None:
+        issuer["jwks_file"] = str(spec.jwks_file.resolve())
+    path.write_text(yaml.safe_dump({"issuers": [issuer]}, sort_keys=False), encoding="utf-8")
+    return path
 
 
 class BrainTokenVerifier:
