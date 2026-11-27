@@ -1,0 +1,42 @@
+# The hosted persona demo (unit 06): who a viewer can ask as, and what to ask.
+# Display data only. Names, titles and roles come from the persons table, and only active
+# people can be picked. Casa Prado and everyone in it are synthetic.
+personas:
+  - id: cp-rosa
+    blurb:
+      es: Dueña y gerente general. Ve casi todo lo que la empresa comparte con ella.
+      en: Owner and general manager. Sees almost everything the company shares with her.
+  - id: cp-diego
+    blurb:
+      es: Gerente comercial de proyectos y reventa.
+      en: Sales manager for new projects and resales.
+  - id: cp-lucia
+    blurb:
+      es: Asesora de ventas. Ve los proyectos y la reventa, no los alquileres.
+      en: Sales agent. Sees projects and resales, not rentals.
+  - id: cp-martin
+    blurb:
+      es: Asesor de alquileres, incluidas las evaluaciones de inquilinos.
+      en: Rentals agent, including tenant screening.
+  - id: cp-carla
+    blurb:
+      es: Administra los edificios. Ve cuotas, órdenes de trabajo y juntas.
+      en: Runs the buildings. Sees fees, work orders and owners' meetings.
+  - id: cp-jorge
+    blurb:
+      es: Técnico externo. Solo ve la carpeta de Torre Alameda que le compartieron.
+      en: Outside technician. Sees only the Torre Alameda folder shared with him.
+
+defaults: [cp-rosa, cp-lucia, cp-martin, cp-jorge]
+
+# Short wording on purpose: offline, the mock model cites a source only if it holds every
+# content word of the question, so these give cited answers without a live model.
+questions:
+  - es: ¿Cuál es el precio de lista del 803 en Mirador?
+    en: What is the list price of unit 803 at Mirador?
+  - es: ¿Cómo va la orden de trabajo de la bomba de agua en Alameda?
+    en: How is the Alameda water pump work order going?
+  - es: ¿Cómo va la separación del 502 en Mirador?
+    en: How is the reservation for unit 502 at Mirador going?
+  - es: ¿Quién debe cuotas de mantenimiento de octubre en Alameda?
+    en: Who owes October maintenance fees at Alameda?
